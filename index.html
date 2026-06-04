@@ -1010,11 +1010,12 @@ h2{
 
     async function fetchMessages() {
         try {
-            const { data } = await supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(50);
+            const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(50);
+            console.log('Сообщения из базы:', data, 'Ошибка:', error);
             const container = document.getElementById('chatBox');
             if (!container) return;
             if (!data || !data.length) {
-                container.innerHTML = '<div class="empty-state">Нет сообщений</div>';
+                container.innerHTML = '<div class="empty-state">Нет сообщений. Напиши первое!</div>';
                 return;
             }
             container.innerHTML = data.reverse().map(m => `
@@ -1035,7 +1036,8 @@ h2{
         if (!text || !currentUser) return;
         input.disabled = true;
         try {
-            await supabase.from('messages').insert({ user_id: currentUser.id, username: currentProfile?.username || 'Пользователь', text: text });
+            const { error } = await supabase.from('messages').insert({ user_id: currentUser.id, username: currentProfile?.username || 'Пользователь', text: text });
+            console.log('Отправка сообщения:', text, 'Ошибка:', error);
             input.value = '';
             await fetchMessages();
             const { data: p } = await supabase.from('profiles').select('messages_count').eq('id', currentUser.id).maybeSingle();
@@ -1095,6 +1097,7 @@ h2{
                         const newTotal = (p2.total_study_minutes || 0) + diffMin;
                         const newSessions = (p2.sessions_count || 0) + 1;
                         await supabase.from('profiles').update({ is_studying: false, session_start: null, total_study_minutes: newTotal, sessions_count: newSessions, last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+                        console.log(`Сессия завершена. Минут: ${diffMin}, Всего: ${newTotal}, Сессий: ${newSessions}`);
                         if (newSessions >= 1) await grantAchievement('Первый шаг');
                         if (newSessions >= 2) await grantAchievement('Возвращение');
                         if (newSessions >= 5) await grantAchievement('Стабильность');
@@ -1202,7 +1205,12 @@ h2{
         const loginBtn = document.getElementById('loginBtn');
         if (loginBtn) {
             loginBtn.onclick = async () => {
-                await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+                await supabase.auth.signInWithOAuth({ 
+                    provider: 'google', 
+                    options: { 
+                        redirectTo: 'https://240109-debug.github.io/ez/' 
+                    } 
+                });
             };
         }
     }
