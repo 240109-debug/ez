@@ -684,6 +684,7 @@ h2{
     </div>
 
 <script type="module">
+    <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
     const URL = 'https://hecwmcynkuhtbdizfsdi.supabase.co';
@@ -747,8 +748,10 @@ h2{
     async function updateAchievementsCount() {
         if (!currentUser) return;
         try {
-            const { count } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
-            await supabase.from('profiles').update({ achievements_count: count || 0 }).eq('id', currentUser.id);
+            const { count, error } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+            if (!error) {
+                await supabase.from('profiles').update({ achievements_count: count || 0 }).eq('id', currentUser.id);
+            }
         } catch (e) {
             console.error('Ошибка обновления счётчика достижений:', e);
         }
@@ -756,20 +759,55 @@ h2{
 
     async function grantAchievement(name) {
         if (!currentUser) return;
+        console.log(`🏆 Попытка выдать достижение: "${name}"`);
+        
         try {
-            const { data: ach } = await supabase.from('achievements').select('id').eq('name', name).maybeSingle();
-            if (!ach) return;
-            const { data: existing } = await supabase.from('user_achievements').select('id').eq('user_id', currentUser.id).eq('achievement_id', ach.id).maybeSingle();
-            if (existing) return;
-            const { error } = await supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: ach.id });
-            if (!error) {
-                console.log(`✅ Достижение "${name}" получено!`);
-                await updateAchievementsCount();
-                await fetchAchievements();
-                await refreshProfile();
+            // Ищем достижение в базе по имени
+            const { data: ach, error: achError } = await supabase.from('achievements').select('id').eq('name', name).maybeSingle();
+            
+            if (achError) {
+                console.error('Ошибка поиска достижения:', achError);
+                return;
             }
+            
+            if (!ach) {
+                console.log(`❌ Достижение "${name}" не найдено в таблице achievements`);
+                return;
+            }
+            
+            console.log(`✅ Найдено достижение id=${ach.id} для "${name}"`);
+            
+            // Проверяем, есть ли уже у пользователя
+            const { data: existing, error: existError } = await supabase.from('user_achievements').select('id').eq('user_id', currentUser.id).eq('achievement_id', ach.id).maybeSingle();
+            
+            if (existError) {
+                console.error('Ошибка проверки существующего достижения:', existError);
+                return;
+            }
+            
+            if (existing) {
+                console.log(`ℹ️ Достижение "${name}" уже получено ранее`);
+                return;
+            }
+            
+            // Вставляем новое достижение
+            const { error: insertError } = await supabase.from('user_achievements').insert({ 
+                user_id: currentUser.id, 
+                achievement_id: ach.id 
+            });
+            
+            if (insertError) {
+                console.error(`❌ Ошибка вставки достижения "${name}":`, insertError);
+                return;
+            }
+            
+            console.log(`🎉 Достижение "${name}" успешно выдано!`);
+            await updateAchievementsCount();
+            await fetchAchievements();
+            await refreshProfile();
+            
         } catch (e) {
-            console.error(`Ошибка в grantAchievement("${name}"):`, e);
+            console.error(`💥 Критическая ошибка в grantAchievement("${name}"):`, e);
         }
     }
 
@@ -1008,44 +1046,81 @@ h2{
         }
     }
 
+    // ✅ ИСПРАВЛЕНО: Чат
     async function fetchMessages() {
         try {
-            const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(50);
-            console.log('Сообщения из базы:', data, 'Ошибка:', error);
+            const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
+            
+            console.log('📨 Загрузка сообщений:', { data, error });
+            
             const container = document.getElementById('chatBox');
             if (!container) return;
+            
+            if (error) {
+                console.error('Ошибка загрузки сообщений:', error);
+                container.innerHTML = '<div class="empty-state">Ошибка загрузки сообщений</div>';
+                return;
+            }
+            
             if (!data || !data.length) {
                 container.innerHTML = '<div class="empty-state">Нет сообщений. Напиши первое!</div>';
                 return;
             }
-            container.innerHTML = data.reverse().map(m => `
+            
+            container.innerHTML = data.map(m => `
                 <div class="chat-msg ${m.user_id === currentUser?.id ? 'my-message' : ''}">
                     <b>${escapeHtml(m.username || 'Пользователь')}:</b>
-                    <div>${escapeHtml(m.text)}</div>
+                    <div>${escapeHtml(m.text || '')}</div>
                 </div>
             `).join('');
+            
             container.scrollTop = container.scrollHeight;
         } catch (e) {
             console.error('Ошибка загрузки сообщений:', e);
         }
     }
 
+    // ✅ ИСПРАВЛЕНО: Отправка сообщений
     async function sendMessage() {
         const input = document.getElementById('chatInput');
         const text = input.value.trim();
-        if (!text || !currentUser) return;
+        if (!text || !currentUser || !currentProfile) return;
+        
         input.disabled = true;
+        
         try {
-            const { error } = await supabase.from('messages').insert({ user_id: currentUser.id, username: currentProfile?.username || 'Пользователь', text: text });
-            console.log('Отправка сообщения:', text, 'Ошибка:', error);
+            const username = currentProfile?.username || currentUser?.email?.split('@')[0] || 'Пользователь';
+            
+            const { error } = await supabase.from('messages').insert({ 
+                user_id: currentUser.id, 
+                username: username, 
+                text: text 
+            });
+            
+            console.log('💬 Отправка сообщения:', { text, username, error });
+            
+            if (error) {
+                console.error('Ошибка отправки:', error);
+                return;
+            }
+            
             input.value = '';
-            await fetchMessages();
+            
+            // Ждём немного чтобы база сохранила
+            setTimeout(async () => {
+                await fetchMessages();
+            }, 300);
+            
+            // Обновляем счётчик сообщений
             const { data: p } = await supabase.from('profiles').select('messages_count').eq('id', currentUser.id).maybeSingle();
             const newCount = (p?.messages_count || 0) + 1;
             await supabase.from('profiles').update({ messages_count: newCount }).eq('id', currentUser.id);
+            
             if (newCount >= 10) await grantAchievement('Активист');
             if (newCount >= 50) await grantAchievement('Душа компании');
+            
             await refreshProfile();
+            
         } catch (e) {
             console.error('Ошибка отправки сообщения:', e);
         } finally {
@@ -1097,7 +1172,9 @@ h2{
                         const newTotal = (p2.total_study_minutes || 0) + diffMin;
                         const newSessions = (p2.sessions_count || 0) + 1;
                         await supabase.from('profiles').update({ is_studying: false, session_start: null, total_study_minutes: newTotal, sessions_count: newSessions, last_seen: new Date().toISOString() }).eq('id', currentUser.id);
-                        console.log(`Сессия завершена. Минут: ${diffMin}, Всего: ${newTotal}, Сессий: ${newSessions}`);
+                        console.log(`⏹ Сессия завершена. Минут: ${diffMin}, Всего минут: ${newTotal}, Сессий: ${newSessions}`);
+                        
+                        // Выдаём достижения
                         if (newSessions >= 1) await grantAchievement('Первый шаг');
                         if (newSessions >= 2) await grantAchievement('Возвращение');
                         if (newSessions >= 5) await grantAchievement('Стабильность');
@@ -1153,12 +1230,17 @@ h2{
     window.saveCustomStatus = saveCustomStatus;
 
     async function seedAchievements() {
+        console.log('🌱 Сидирование достижений...');
         try {
             for (const a of ACHIEVEMENTS_LIST) {
                 const { data: exists } = await supabase.from('achievements').select('id').eq('name', a.name).maybeSingle();
                 if (!exists) {
-                    await supabase.from('achievements').insert({ name: a.name, icon: a.icon, description: a.desc });
-                    console.log(`✅ Достижение "${a.name}" добавлено в базу`);
+                    const { error } = await supabase.from('achievements').insert({ name: a.name, icon: a.icon, description: a.desc });
+                    if (error) {
+                        console.error(`❌ Ошибка добавления "${a.name}":`, error);
+                    } else {
+                        console.log(`✅ Достижение "${a.name}" добавлено в базу`);
+                    }
                 }
             }
         } catch (e) {
@@ -1182,10 +1264,12 @@ h2{
             document.getElementById('sessionUI').style.display = 'block';
             document.getElementById('chatSection').style.display = 'block';
             document.getElementById('authContent').innerHTML = '';
-            seedAchievements();
+            
+            await seedAchievements();
             await Promise.all([refreshProfile(), fetchGroup(), fetchRanking(), fetchAchievements(), fetchMessages()]);
             await initSessionLogic();
             await updateHeartbeat();
+            
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             heartbeatInterval = setInterval(updateHeartbeat, 30000);
             console.log('✅ Пользователь полностью загружен');
@@ -1254,6 +1338,7 @@ h2{
     setInterval(() => {
         if (currentUser) { fetchGroup(); fetchMessages(); fetchRanking(); } else { fetchGroup(); }
     }, 30000);
+</script>
 </script>
 </body>
 </html>
