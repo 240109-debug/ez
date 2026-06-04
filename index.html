@@ -639,9 +639,10 @@ h2{
         const { data: ach } = await supabase.from('achievements').select('id').eq('name', name).single();
         if (!ach) return;
         
+        // Исправлено: правильный синтаксис для составного ключа
         const { error } = await supabase.from('user_achievements').upsert(
             { user_id: currentUser.id, achievement_id: ach.id }, 
-            { onConflict: 'user_id,achievement_id', ignoreDuplicates: true }
+            { onConflict: ['user_id', 'achievement_id'] }
         );
         
         if (!error) {
@@ -662,7 +663,7 @@ h2{
             <div class="ach-item ${myIds.has(a.id) ? 'unlocked' : ''}">
                 <div class="ach-icon">${a.icon || '🏆'}</div>
                 <div style="font-weight:600; font-size:0.75rem;">${escapeHtml(a.name)}</div>
-                <small style="color:#94a3b8;">${escapeHtml(a.desc || '')}</small>
+                <small style="color:#94a3b8;">${escapeHtml(a.desc || a.description || '')}</small>
             </div>
         `).join('');
     }
@@ -951,123 +952,57 @@ h2{
         }
     }
 
-    async function initAuth() {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-            currentUser = session.user;
-            const avatarUrl = currentUser.user_metadata?.avatar_url;
-            const username = currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0];
-            
-            await supabase.from('profiles').upsert({ 
-                id: currentUser.id, 
-                username: username,
+    // Исправленная функция handleUser (теперь на верхнем уровне)
+    async function handleUser(user) {
+        currentUser = user;
+
+        const avatarUrl =
+            user.user_metadata?.avatar_url ||
+            user.user_metadata?.picture ||
+            null;
+
+        const username =
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            user.email?.split('@')[0] ||
+            'Пользователь';
+
+        await supabase
+            .from('profiles')
+            .upsert({
+                id: user.id,
+                username,
                 avatar_url: avatarUrl,
                 last_seen: new Date().toISOString(),
                 status: '🟢 Онлайн'
             }, { onConflict: 'id' });
-            
-            await seedAchievements();
-            await refreshProfile();
-            await fetchGroup();
-            await fetchRanking();
-            await fetchAchievements();
-            await fetchMessages();
-            
-            document.getElementById('sessionUI').style.display = 'block';
-            document.getElementById('chatSection').style.display = 'block';
-            
-            await initSessionLogic();
-            await updateHeartbeat();
-            
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
-            heartbeatInterval = setInterval(updateHeartbeat, 30000);
-            
-            const container = document.getElementById('authContent');
-            if (container) container.innerHTML = '';
-            
-        } else {
-            const container = document.getElementById('authContent');
-            container.innerHTML = `
-                <button id="loginBtn" style="width:100%; padding:14px; border-radius:10px; background:white; color:#1e293b; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
-                    <img src="https://www.google.com/favicon.ico" width="18"> Войти через Google
-                </button>
-            `;
-            
-            async function initAuth() {
 
-    const {
-        data: { session }
-    } = await supabase.auth.getSession();
+        await seedAchievements();
+        await refreshProfile();
+        await fetchGroup();
+        await fetchRanking();
+        await fetchAchievements();
+        await fetchMessages();
 
-    if (session?.user) {
-        await handleUser(session.user);
-        return;
+        document.getElementById('sessionUI').style.display = 'block';
+        document.getElementById('chatSection').style.display = 'block';
+
+        await initSessionLogic();
+        await updateHeartbeat();
+
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        heartbeatInterval = setInterval(updateHeartbeat, 30000);
     }
 
-    const {
-        data: { user }
-    } = await supabase.auth.getUser();
+    function showLoginButton() {
+        const container = document.getElementById('authContent');
+        container.innerHTML = `
+            <button id="loginBtn" style="width:100%; padding:14px; border-radius:10px; background:white; color:#1e293b; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+                <img src="https://www.google.com/favicon.ico" width="18"> Войти через Google
+            </button>
+        `;
 
-    if (user) {
-        await handleUser(user);
-        return;
-    }
-
-    showLoginButton();
-}
-
-async function handleUser(user) {
-
-    currentUser = user;
-
-    const avatarUrl =
-        user.user_metadata?.avatar_url ||
-        user.user_metadata?.picture ||
-        null;
-
-    const username =
-        user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
-        user.email?.split('@')[0] ||
-        'Пользователь';
-
-    await supabase
-        .from('profiles')
-        .upsert({
-            id: user.id,
-            username,
-            avatar_url: avatarUrl,
-            last_seen: new Date().toISOString()
-        });
-
-    await refreshProfile();
-    await fetchGroup();
-    await fetchRanking();
-    await fetchAchievements();
-    await fetchMessages();
-
-    document.getElementById('sessionUI').style.display = 'block';
-    document.getElementById('chatSection').style.display = 'block';
-
-    await initSessionLogic();
-}
-
-function showLoginButton() {
-
-    const container =
-        document.getElementById('authContent');
-
-    container.innerHTML = `
-        <button id="loginBtn">
-            Войти через Google
-        </button>
-    `;
-
-    document
-        .getElementById('loginBtn')
-        .onclick = async () => {
-
+        document.getElementById('loginBtn').onclick = async () => {
             await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
@@ -1075,26 +1010,43 @@ function showLoginButton() {
                 }
             });
         };
-}
+    }
 
+    // Единая функция initAuth
+    async function initAuth() {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.user) {
+            await handleUser(session.user);
+            return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+            await handleUser(user);
+            return;
+        }
+
+        showLoginButton();
+    }
+
+    // Слушатель изменений авторизации
     supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            await initAuth();
+        }
+        if (event === 'SIGNED_OUT') {
+            window.location.reload();
+        }
+    });
 
-    if (
-        event === 'SIGNED_IN' ||
-        event === 'TOKEN_REFRESHED'
-    ) {
+    // Запуск при загрузке
+    window.addEventListener('load', async () => {
         await initAuth();
-    }
-
-    if (event === 'SIGNED_OUT') {
-        window.location.reload();
-    }
-});
-
-window.addEventListener('load', async () => {
-    await initAuth();
-});
+    });
     
+    // Периодическое обновление
     setInterval(() => {
         if (currentUser) {
             fetchGroup();
