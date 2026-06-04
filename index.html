@@ -406,11 +406,6 @@
                 </svg>
                 Войти через Google
             </button>
-            <div style="margin: 16px 0; color: #d1d5db;">— или —</div>
-            <input type="email" id="loginEmail" placeholder="Email" style="width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:40px; margin-bottom:10px;">
-            <input type="password" id="loginPassword" placeholder="Пароль" style="width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:40px; margin-bottom:10px;">
-            <button id="emailLoginBtn" class="google-btn" style="background:#374151;">Войти по email</button>
-            <button id="registerBtn" class="google-btn" style="background:#059669; margin-top:10px;">Зарегистрироваться</button>
         </div>
     </div>
 
@@ -865,32 +860,11 @@
         channel.subscribe();
     }
 
-    // ========== ВХОД ЧЕРЕЗ GOOGLE (СТАРАЯ РАБОЧАЯ ВЕРСИЯ) ==========
-    async function loginGoogle() {
-        const { error } = await supabase.auth.signInWithOAuth({
+    async function login() {
+        await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: { redirectTo: window.location.href }
         });
-        if (error) {
-            console.error('Login error:', error);
-            alert('Ошибка входа: ' + error.message);
-        }
-    }
-
-    async function loginEmail() {
-        const email = document.getElementById('loginEmail').value;
-        const password = document.getElementById('loginPassword').value;
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) alert('Ошибка: ' + error.message);
-        else alert('Вход выполнен!');
-    }
-
-    async function registerEmail() {
-        const email = document.getElementById('loginEmail').value;
-        const password = document.getElementById('loginPassword').value;
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) alert('Ошибка: ' + error.message);
-        else alert('Проверьте почту для подтверждения!');
     }
 
     async function logout() {
@@ -937,9 +911,7 @@
         }
     }
 
-    document.getElementById('googleLoginBtn')?.addEventListener('click', loginGoogle);
-    document.getElementById('emailLoginBtn')?.addEventListener('click', loginEmail);
-    document.getElementById('registerBtn')?.addEventListener('click', registerEmail);
+    document.getElementById('googleLoginBtn')?.addEventListener('click', login);
     document.getElementById('logoutBtn')?.addEventListener('click', logout);
     document.getElementById('sendBtn')?.addEventListener('click', sendMessage);
     document.getElementById('chatInput')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
