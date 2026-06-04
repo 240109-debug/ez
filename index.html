@@ -29,7 +29,6 @@
             display: none !important;
         }
 
-        /* Логин форма */
         .login-card {
             background: #f9fafb;
             border-radius: 16px;
@@ -59,7 +58,6 @@
             gap: 10px;
         }
 
-        /* Карточки */
         .card {
             background: #f9fafb;
             border-radius: 16px;
@@ -75,7 +73,6 @@
             color: #111827;
         }
 
-        /* Шапка */
         .header {
             display: flex;
             justify-content: space-between;
@@ -118,7 +115,6 @@
             font-size: 14px;
         }
 
-        /* Статус */
         .status-input {
             width: 100%;
             padding: 12px 16px;
@@ -134,7 +130,6 @@
             border-color: #111827;
         }
 
-        /* Прогресс-бар */
         .goal-section {
             margin: 20px 0;
         }
@@ -162,7 +157,6 @@
             transition: width 0.3s;
         }
 
-        /* Таймер */
         .timer-block {
             text-align: center;
             padding: 20px;
@@ -192,14 +186,12 @@
             border-radius: 40px;
             font-weight: 500;
             cursor: pointer;
-            background: #f3f4f6;
         }
 
         .btn-start { background: #111827; color: white; }
         .btn-pause { background: #f3f4f6; color: #111827; }
         .btn-stop { background: #fee2e2; color: #dc2626; }
 
-        /* Кнопки действий */
         .action-buttons {
             display: flex;
             gap: 12px;
@@ -216,7 +208,6 @@
             font-weight: 500;
         }
 
-        /* Достижения */
         .achievements-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -246,7 +237,6 @@
             font-weight: 500;
         }
 
-        /* Чат */
         .chat-messages {
             height: 280px;
             overflow-y: auto;
@@ -300,7 +290,6 @@
             cursor: pointer;
         }
 
-        /* Рейтинг и группа */
         .rank-list, .member-list {
             display: flex;
             flex-direction: column;
@@ -337,7 +326,6 @@
             color: #6b7280;
         }
 
-        /* Модалка */
         .modal {
             display: none;
             position: fixed;
@@ -384,7 +372,6 @@
             border-bottom: 1px solid #e5e7eb;
         }
 
-        /* Уведомления */
         .notification {
             position: fixed;
             top: 20px;
@@ -406,7 +393,6 @@
 <body>
 
 <div class="container">
-    <!-- Login Page -->
     <div id="loginPage">
         <div class="login-card">
             <h2>EZ Study</h2>
@@ -418,36 +404,34 @@
                     <path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                     <path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Sign in with Google
+                Войти через Google
             </button>
-            <div style="margin: 16px 0; color: #d1d5db;">— or —</div>
+            <div style="margin: 16px 0; color: #d1d5db;">— или —</div>
             <input type="email" id="loginEmail" placeholder="Email" style="width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:40px; margin-bottom:10px;">
-            <input type="password" id="loginPassword" placeholder="Password" style="width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:40px; margin-bottom:10px;">
-            <button id="emailLoginBtn" class="google-btn" style="background:#374151;">Sign in with Email</button>
-            <button id="registerBtn" class="google-btn" style="background:#059669; margin-top:10px;">Create Account</button>
+            <input type="password" id="loginPassword" placeholder="Пароль" style="width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:40px; margin-bottom:10px;">
+            <button id="emailLoginBtn" class="google-btn" style="background:#374151;">Войти по email</button>
+            <button id="registerBtn" class="google-btn" style="background:#059669; margin-top:10px;">Зарегистрироваться</button>
         </div>
     </div>
 
-    <!-- Main App -->
     <div id="app" class="hidden">
         <div class="header">
             <div class="logo">EZ Study</div>
             <div class="user-area">
                 <span id="userName"></span>
                 <div class="avatar" id="userAvatar">A</div>
-                <button id="logoutBtn" class="logout-btn">Exit</button>
+                <button id="logoutBtn" class="logout-btn">Выйти</button>
             </div>
         </div>
 
-        <!-- Моя сессия -->
         <div class="card">
-            <h3>Study Session</h3>
-            <input type="text" id="statusInput" class="status-input" placeholder="What are you doing?">
+            <h3>Моя сессия</h3>
+            <input type="text" id="statusInput" class="status-input" placeholder="Что делаешь?">
             
             <div class="goal-section">
                 <div class="goal-label">
-                    <span>Daily goal</span>
-                    <span id="goalText">0 / 60 min</span>
+                    <span>Дневная цель</span>
+                    <span id="goalText">0 / 60 мин</span>
                 </div>
                 <div class="progress-bar-bg">
                     <div class="progress-bar-fill" id="goalFill"></div>
@@ -455,57 +439,52 @@
             </div>
 
             <div class="timer-block">
-                <div class="timer-display" id="timerDisplay">0 min</div>
+                <div class="timer-display" id="timerDisplay">0 мин</div>
                 <div class="timer-buttons">
-                    <button id="startBtn" class="timer-btn btn-start">Start</button>
-                    <button id="pauseBtn" class="timer-btn btn-pause">Pause</button>
-                    <button id="stopBtn" class="timer-btn btn-stop">Stop</button>
+                    <button id="startBtn" class="timer-btn btn-start">Старт</button>
+                    <button id="pauseBtn" class="timer-btn btn-pause">Пауза</button>
+                    <button id="stopBtn" class="timer-btn btn-stop">Стоп</button>
                 </div>
             </div>
 
             <div class="action-buttons">
-                <button id="statsBtn" class="action-btn">Statistics</button>
+                <button id="statsBtn" class="action-btn">Статистика</button>
             </div>
         </div>
 
-        <!-- Достижения -->
         <div class="card">
-            <h3>Achievements</h3>
-            <div id="achievementsList" class="achievements-grid">Loading...</div>
+            <h3>Достижения</h3>
+            <div id="achievementsList" class="achievements-grid">Загрузка...</div>
         </div>
 
-        <!-- Чат -->
         <div class="card">
-            <h3>Chat</h3>
-            <div id="chatMessages" class="chat-messages">Loading...</div>
+            <h3>Чат</h3>
+            <div id="chatMessages" class="chat-messages">Загрузка...</div>
             <div class="chat-input-area">
-                <input type="text" id="chatInput" class="chat-input" placeholder="Type a message...">
-                <button id="sendBtn" class="send-btn">Send</button>
+                <input type="text" id="chatInput" class="chat-input" placeholder="Сообщение...">
+                <button id="sendBtn" class="send-btn">Отправить</button>
             </div>
         </div>
 
-        <!-- Рейтинг -->
         <div class="card">
-            <h3>Rankings</h3>
-            <div id="rankingList" class="rank-list">Loading...</div>
+            <h3>Рейтинг</h3>
+            <div id="rankingList" class="rank-list">Загрузка...</div>
         </div>
 
-        <!-- Группа -->
         <div class="card">
-            <h3>Group</h3>
-            <div id="groupList" class="member-list">Loading...</div>
+            <h3>Группа</h3>
+            <div id="groupList" class="member-list">Загрузка...</div>
         </div>
     </div>
 </div>
 
-<!-- Stats Modal -->
 <div id="statsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Statistics</h3>
+            <h3>Статистика</h3>
             <button class="close-modal" id="closeModalBtn">&times;</button>
         </div>
-        <div id="statsContent">Loading...</div>
+        <div id="statsContent">Загрузка...</div>
     </div>
 </div>
 
@@ -532,8 +511,8 @@
     function formatTime(minutes) {
         const hrs = Math.floor(minutes / 60);
         const mins = minutes % 60;
-        if (hrs > 0) return `${hrs}h ${mins}m`;
-        return `${mins}m`;
+        if (hrs > 0) return `${hrs}ч ${mins}м`;
+        return `${mins}м`;
     }
 
     function updateTimerDisplay() {
@@ -631,7 +610,7 @@
         const goal = data?.daily_goal_minutes || 60;
         const studied = data?.study_minutes || studyMinutes;
         
-        document.getElementById('goalText').textContent = `${studied} / ${goal} min`;
+        document.getElementById('goalText').textContent = `${studied} / ${goal} мин`;
         const percent = Math.min((studied / goal) * 100, 100);
         document.getElementById('goalFill').style.width = `${percent}%`;
     }
@@ -691,7 +670,7 @@
             .from('user_achievements')
             .insert({ user_id: currentUserId, achievement_id: achievementId });
         if (!error || error.code === '23505') {
-            showNotification('New achievement!', 'You earned a new badge');
+            showNotification('Новое достижение!', 'Вы получили новую награду');
         }
     }
 
@@ -706,7 +685,7 @@
         if (!container) return;
         
         if (!data || data.length === 0) {
-            container.innerHTML = '<div style="text-align:center;">No messages yet</div>';
+            container.innerHTML = '<div style="text-align:center;">Нет сообщений</div>';
             return;
         }
         
@@ -751,13 +730,13 @@
         
         const container = document.getElementById('rankingList');
         if (!container) return;
-        if (!data || data.length === 0) { container.innerHTML = '<div>No data</div>'; return; }
+        if (!data || data.length === 0) { container.innerHTML = '<div>Нет данных</div>'; return; }
         
         container.innerHTML = data.map((user, idx) => `
             <div class="rank-item">
                 <span class="rank-number">${idx+1}.</span>
-                <span><strong>${escapeHtml(user.username)}</strong> (Lvl ${user.level})</span>
-                <span>${Math.floor(user.total_study_minutes / 60)}h</span>
+                <span><strong>${escapeHtml(user.username)}</strong> (${user.level} ур.)</span>
+                <span>${Math.floor(user.total_study_minutes / 60)}ч</span>
             </div>
         `).join('');
     }
@@ -776,9 +755,9 @@
                 <div>
                     <span class="online-dot ${onlineIds.has(user.id) ? 'online' : ''}"></span>
                     <strong>${escapeHtml(user.username)}</strong>
-                    <div class="member-status">${escapeHtml(user.custom_status || 'Just chilling')}</div>
+                    <div class="member-status">${escapeHtml(user.custom_status || 'Без статуса')}</div>
                 </div>
-                <div>Lvl ${user.level}</div>
+                <div>${user.level} ур.</div>
             </div>
         `).join('');
     }
@@ -815,19 +794,19 @@
         
         let weekActivity = '';
         if (stats && stats.length > 0) {
-            weekActivity = stats.map(s => `<div>${s.activity_date}: ${s.study_minutes} min</div>`).join('');
+            weekActivity = stats.map(s => `<div>${s.activity_date}: ${s.study_minutes} мин</div>`).join('');
         } else {
-            weekActivity = 'No data';
+            weekActivity = 'Нет данных';
         }
         
         document.getElementById('statsContent').innerHTML = `
-            <div class="stat-item"><span>Name:</span><span>${escapeHtml(profile?.username)}</span></div>
+            <div class="stat-item"><span>Имя:</span><span>${escapeHtml(profile?.username)}</span></div>
             <div class="stat-item"><span>Email:</span><span>${escapeHtml(profile?.email)}</span></div>
-            <div class="stat-item"><span>Total study:</span><span>${hours}h ${mins}m</span></div>
-            <div class="stat-item"><span>Messages:</span><span>${msgCount || 0}</span></div>
-            <div class="stat-item"><span>Achievements:</span><span>${achievements?.length || 0}</span></div>
-            <div class="stat-item"><span>Level:</span><span>${profile?.level || 1}</span></div>
-            <div class="stat-item"><span>Weekly activity:</span><span>${weekActivity}</span></div>
+            <div class="stat-item"><span>Всего учёбы:</span><span>${hours}ч ${mins}м</span></div>
+            <div class="stat-item"><span>Сообщений:</span><span>${msgCount || 0}</span></div>
+            <div class="stat-item"><span>Достижений:</span><span>${achievements?.length || 0}</span></div>
+            <div class="stat-item"><span>Уровень:</span><span>${profile?.level || 1}</span></div>
+            <div class="stat-item"><span>Активность за неделю:</span><span>${weekActivity}</span></div>
         `;
         document.getElementById('statsModal').classList.add('active');
     }
@@ -864,7 +843,7 @@
                 id: user.id,
                 email: user.email,
                 username: user.user_metadata?.full_name || user.email?.split('@')[0],
-                custom_status: 'Just chilling',
+                custom_status: 'Без статуса',
                 level: 1,
                 xp_points: 0
             });
@@ -874,7 +853,7 @@
             updateTimerDisplay();
         }
         
-        document.getElementById('statusInput').value = existing?.custom_status || 'Just chilling';
+        document.getElementById('statusInput').value = existing?.custom_status || 'Без статуса';
         await updateGoalProgress();
     }
 
@@ -886,27 +865,32 @@
         channel.subscribe();
     }
 
+    // ========== ВХОД ЧЕРЕЗ GOOGLE (СТАРАЯ РАБОЧАЯ ВЕРСИЯ) ==========
     async function loginGoogle() {
-        await supabase.auth.signInWithOAuth({
+        const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: SITE_URL }
+            options: { redirectTo: window.location.href }
         });
+        if (error) {
+            console.error('Login error:', error);
+            alert('Ошибка входа: ' + error.message);
+        }
     }
 
     async function loginEmail() {
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) alert('Error: ' + error.message);
-        else alert('Signed in!');
+        if (error) alert('Ошибка: ' + error.message);
+        else alert('Вход выполнен!');
     }
 
     async function registerEmail() {
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
         const { error } = await supabase.auth.signUp({ email, password });
-        if (error) alert('Error: ' + error.message);
-        else alert('Check your email to confirm!');
+        if (error) alert('Ошибка: ' + error.message);
+        else alert('Проверьте почту для подтверждения!');
     }
 
     async function logout() {
