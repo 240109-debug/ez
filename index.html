@@ -591,6 +591,7 @@ h2{
     let timerInterval = null;
     let heartbeatInterval = null;
     let currentMonitorTab = 'participants';
+    let isInitialized = false; // Флаг, чтобы избежать двойной инициализации
 
     // Список достижений
     const ACHIEVEMENTS_LIST = [
@@ -630,132 +631,203 @@ h2{
 
     async function updateHeartbeat() {
         if (!currentUser) return;
-        await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+        try {
+            await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+        } catch (e) {
+            console.error('Ошибка heartbeat:', e);
+        }
+    }
+
+    async function updateAchievementsCount() {
+        if (!currentUser) return;
+        try {
+            const { count } = await supabase
+                .from('user_achievements')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', currentUser.id);
+            
+            await supabase.from('profiles')
+                .update({ achievements_count: count || 0 })
+                .eq('id', currentUser.id);
+        } catch (e) {
+            console.error('Ошибка обновления счётчика достижений:', e);
+        }
     }
 
     async function grantAchievement(name) {
         if (!currentUser) return;
         
-        const { data: ach } = await supabase.from('achievements').select('id').eq('name', name).single();
-        if (!ach) return;
-        
-        // Исправлено: правильный синтаксис для составного ключа
-        const { error } = await supabase.from('user_achievements').upsert(
-            { user_id: currentUser.id, achievement_id: ach.id }, 
-            { onConflict: ['user_id', 'achievement_id'] }
-        );
-        
-        if (!error) {
-            console.log(`Достижение "${name}" получено!`);
-            await fetchAchievements();
+        try {
+            // Проверяем, существует ли достижение
+            const { data: ach } = await supabase.from('achievements').select('id').eq('name', name).maybeSingle();
+            if (!ach) {
+                console.log(`Достижение "${name}" не найдено в базе`);
+                return;
+            }
+            
+            // Проверяем, нет ли уже такого достижения у пользователя
+            const { data: existing } = await supabase.from('user_achievements')
+                .select('id')
+                .eq('user_id', currentUser.id)
+                .eq('achievement_id', ach.id)
+                .maybeSingle();
+            
+            if (existing) {
+                console.log(`Достижение "${name}" уже получено`);
+                return;
+            }
+            
+            // Выдаём достижение
+            const { error } = await supabase.from('user_achievements').insert(
+                { user_id: currentUser.id, achievement_id: ach.id }
+            );
+            
+            if (!error) {
+                console.log(`✅ Достижение "${name}" получено!`);
+                await updateAchievementsCount();
+                await fetchAchievements();
+                await refreshProfile();
+            } else {
+                console.error(`Ошибка выдачи достижения "${name}":`, error);
+            }
+        } catch (e) {
+            console.error(`Критическая ошибка в grantAchievement("${name}"):`, e);
         }
     }
 
     async function fetchAchievements() {
-        const { data: all } = await supabase.from('achievements').select('*');
-        const { data: my } = currentUser ? await supabase.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id) : { data: [] };
-        const myIds = new Set(my?.map(m => m.achievement_id) || []);
-        
-        const list = (all && all.length) ? all : ACHIEVEMENTS_LIST;
-        const container = document.getElementById('achList');
-        
-        container.innerHTML = list.map(a => `
-            <div class="ach-item ${myIds.has(a.id) ? 'unlocked' : ''}">
-                <div class="ach-icon">${a.icon || '🏆'}</div>
-                <div style="font-weight:600; font-size:0.75rem;">${escapeHtml(a.name)}</div>
-                <small style="color:#94a3b8;">${escapeHtml(a.desc || a.description || '')}</small>
-            </div>
-        `).join('');
+        try {
+            const { data: all } = await supabase.from('achievements').select('*');
+            const { data: my } = currentUser ? await supabase.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id) : { data: [] };
+            const myIds = new Set(my?.map(m => m.achievement_id) || []);
+            
+            const list = (all && all.length) ? all : ACHIEVEMENTS_LIST;
+            const container = document.getElementById('achList');
+            
+            if (container) {
+                container.innerHTML = list.map(a => `
+                    <div class="ach-item ${myIds.has(a.id) ? 'unlocked' : ''}">
+                        <div class="ach-icon">${a.icon || '🏆'}</div>
+                        <div style="font-weight:600; font-size:0.75rem;">${escapeHtml(a.name)}</div>
+                        <small style="color:#94a3b8;">${escapeHtml(a.description || a.desc || '')}</small>
+                    </div>
+                `).join('');
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки достижений:', e);
+        }
     }
 
     async function fetchRanking() {
-        const { data } = await supabase
-            .from('profiles')
-            .select('id, username, avatar_url, total_study_minutes, sessions_count')
-            .order('total_study_minutes', { ascending: false })
-            .limit(10);
-        
-        const container = document.getElementById('rankList');
-        if (!data || !data.length) {
-            container.innerHTML = '<div class="empty-state">Нет данных для рейтинга</div>';
-            return;
-        }
-        
-        container.innerHTML = data.map((u, i) => {
-            let medal = '';
-            if (i === 0) medal = '🥇';
-            else if (i === 1) medal = '🥈';
-            else if (i === 2) medal = '🥉';
-            else medal = `${i+1}.`;
+        try {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, username, avatar_url, total_study_minutes, sessions_count')
+                .order('total_study_minutes', { ascending: false })
+                .limit(10);
             
-            return `
-                <div class="rank-row">
-                    <div style="width: 35px; font-weight: bold;">${medal}</div>
-                    <div class="rank-avatar">
-                        ${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}
+            const container = document.getElementById('rankList');
+            if (!container) return;
+            
+            if (!data || !data.length) {
+                container.innerHTML = '<div class="empty-state">Нет данных для рейтинга</div>';
+                return;
+            }
+            
+            container.innerHTML = data.map((u, i) => {
+                let medal = '';
+                if (i === 0) medal = '🥇';
+                else if (i === 1) medal = '🥈';
+                else if (i === 2) medal = '🥉';
+                else medal = `${i+1}.`;
+                
+                return `
+                    <div class="rank-row">
+                        <div style="width: 35px; font-weight: bold;">${medal}</div>
+                        <div class="rank-avatar">
+                            ${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}
+                        </div>
+                        <div style="flex:1;">
+                            <b>${escapeHtml(u.username || 'Пользователь')}</b>
+                            <div style="font-size:0.7rem; color:#94a3b8;">${u.sessions_count || 0} сессий</div>
+                        </div>
+                        <b style="color: var(--success-color);">${formatTimeShort(u.total_study_minutes || 0)}</b>
                     </div>
-                    <div style="flex:1;">
-                        <b>${escapeHtml(u.username || 'Пользователь')}</b>
-                        <div style="font-size:0.7rem; color:#94a3b8;">${u.sessions_count || 0} сессий</div>
-                    </div>
-                    <b style="color: var(--success-color);">${formatTimeShort(u.total_study_minutes || 0)}</b>
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
+        } catch (e) {
+            console.error('Ошибка загрузки рейтинга:', e);
+        }
     }
 
     async function fetchGroup() {
-        const { data } = await supabase.from('profiles').select('*');
-        if (!data) return;
-        
-        const studying = data.filter(u => u.is_studying).length;
-        const online = data.filter(u => isOnline(u)).length;
-        const offline = data.length - online;
-        
-        document.getElementById('monitorSummary').innerHTML = `
-            <div class="monitor-summary-card"><b>${studying}</b><span>учатся</span></div>
-            <div class="monitor-summary-card"><b>${online}</b><span>онлайн</span></div>
-            <div class="monitor-summary-card"><b>${offline}</b><span>офлайн</span></div>
-        `;
-        
-        document.getElementById('groupList').innerHTML = data.map(u => {
-            const onlineNow = isOnline(u);
-            return `
-                <div class="user-item">
-                    <div class="user-avatar-wrap">
-                        <div class="user-avatar">
-                            ${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}
+        try {
+            const { data } = await supabase.from('profiles').select('*');
+            if (!data) return;
+            
+            const studying = data.filter(u => u.is_studying).length;
+            const online = data.filter(u => isOnline(u)).length;
+            const offline = data.length - online;
+            
+            const summaryEl = document.getElementById('monitorSummary');
+            if (summaryEl) {
+                summaryEl.innerHTML = `
+                    <div class="monitor-summary-card"><b>${studying}</b><span>учатся</span></div>
+                    <div class="monitor-summary-card"><b>${online}</b><span>онлайн</span></div>
+                    <div class="monitor-summary-card"><b>${offline}</b><span>офлайн</span></div>
+                `;
+            }
+            
+            const groupListEl = document.getElementById('groupList');
+            if (groupListEl) {
+                groupListEl.innerHTML = data.map(u => {
+                    const onlineNow = isOnline(u);
+                    return `
+                        <div class="user-item">
+                            <div class="user-avatar-wrap">
+                                <div class="user-avatar">
+                                    ${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}
+                                </div>
+                                <div class="online-dot ${onlineNow ? 'active' : ''}"></div>
+                            </div>
+                            <div class="username">${escapeHtml(u.username || 'Пользователь')}</div>
+                            <div><span class="status-tag">${escapeHtml(u.status || '🟢 Онлайн')}</span></div>
                         </div>
-                        <div class="online-dot ${onlineNow ? 'active' : ''}"></div>
-                    </div>
-                    <div class="username">${escapeHtml(u.username || 'Пользователь')}</div>
-                    <div><span class="status-tag">${escapeHtml(u.status || '🟢 Онлайн')}</span></div>
-                </div>
-            `;
-        }).join('');
+                    `;
+                }).join('');
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки группы:', e);
+        }
     }
 
     async function fetchMessages() {
-        const { data } = await supabase
-            .from('messages')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(50);
-        
-        const container = document.getElementById('chatBox');
-        if (!data || !data.length) {
-            container.innerHTML = '<div class="empty-state">Нет сообщений</div>';
-            return;
+        try {
+            const { data } = await supabase
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(50);
+            
+            const container = document.getElementById('chatBox');
+            if (!container) return;
+            
+            if (!data || !data.length) {
+                container.innerHTML = '<div class="empty-state">Нет сообщений</div>';
+                return;
+            }
+            
+            container.innerHTML = data.reverse().map(m => `
+                <div class="chat-msg ${m.user_id === currentUser?.id ? 'my-message' : ''}">
+                    <b>${escapeHtml(m.username || 'Пользователь')}:</b>
+                    <div>${escapeHtml(m.text)}</div>
+                </div>
+            `).join('');
+            
+            container.scrollTop = container.scrollHeight;
+        } catch (e) {
+            console.error('Ошибка загрузки сообщений:', e);
         }
-        
-        container.innerHTML = data.reverse().map(m => `
-            <div class="chat-msg ${m.user_id === currentUser?.id ? 'my-message' : ''}">
-                <b>${escapeHtml(m.username || 'Пользователь')}:</b>
-                <div>${escapeHtml(m.text)}</div>
-            </div>
-        `).join('');
-        
-        container.scrollTop = container.scrollHeight;
     }
 
     async function sendMessage() {
@@ -763,23 +835,32 @@ h2{
         const text = input.value.trim();
         if (!text || !currentUser) return;
         
-        await supabase.from('messages').insert({ 
-            user_id: currentUser.id, 
-            username: currentProfile?.username, 
-            text: text 
-        });
+        input.disabled = true;
         
-        input.value = '';
-        await fetchMessages();
-        
-        const { data: p } = await supabase.from('profiles').select('messages_count, total_study_minutes, sessions_count').eq('id', currentUser.id).single();
-        const newCount = (p?.messages_count || 0) + 1;
-        await supabase.from('profiles').update({ messages_count: newCount }).eq('id', currentUser.id);
-        
-        if (newCount >= 10) await grantAchievement('Активист');
-        if (newCount >= 50) await grantAchievement('Душа компании');
-        
-        await refreshProfile();
+        try {
+            await supabase.from('messages').insert({ 
+                user_id: currentUser.id, 
+                username: currentProfile?.username || 'Пользователь', 
+                text: text 
+            });
+            
+            input.value = '';
+            await fetchMessages();
+            
+            const { data: p } = await supabase.from('profiles').select('messages_count').eq('id', currentUser.id).maybeSingle();
+            const newCount = (p?.messages_count || 0) + 1;
+            await supabase.from('profiles').update({ messages_count: newCount }).eq('id', currentUser.id);
+            
+            if (newCount >= 10) await grantAchievement('Активист');
+            if (newCount >= 50) await grantAchievement('Душа компании');
+            
+            await refreshProfile();
+        } catch (e) {
+            console.error('Ошибка отправки сообщения:', e);
+        } finally {
+            input.disabled = false;
+            input.focus();
+        }
     }
 
     window.sendMessage = sendMessage;
@@ -787,129 +868,159 @@ h2{
     async function refreshProfile() {
         if (!currentUser) return;
         
-        const { data: p } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-        currentProfile = p;
-        
-        const infoBox = document.querySelector('.status-info-box');
-        infoBox.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                <div class="profile-avatar">
-                    ${p?.avatar_url ? `<img src="${p.avatar_url}" alt="">` : '👤'}
+        try {
+            const { data: p } = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+            if (!p) return;
+            
+            currentProfile = p;
+            
+            const infoBox = document.querySelector('.status-info-box');
+            if (!infoBox) return;
+            
+            infoBox.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                    <div class="profile-avatar">
+                        ${p?.avatar_url ? `<img src="${p.avatar_url}" alt="">` : '👤'}
+                    </div>
+                    <div>
+                        <div style="font-weight: bold;">${escapeHtml(p?.username || 'Пользователь')}</div>
+                        <div style="font-size: 0.8rem; color: var(--success-color);">● В сети</div>
+                    </div>
                 </div>
-                <div>
-                    <div style="font-weight: bold;">${escapeHtml(p?.username || 'Пользователь')}</div>
-                    <div style="font-size: 0.8rem; color: var(--success-color);">● В сети</div>
+                <div class="stats-grid-container">
+                    <div class="stat-card">
+                        <b>${formatTimeShort(p?.total_study_minutes || 0)}</b>
+                        <span>Учёба</span>
+                    </div>
+                    <div class="stat-card">
+                        <b>${p?.sessions_count || 0}</b>
+                        <span>Сессий</span>
+                    </div>
+                    <div class="stat-card">
+                        <b>${p?.messages_count || 0}</b>
+                        <span>Сообщ.</span>
+                    </div>
+                    <div class="stat-card">
+                        <b>${p?.achievements_count || 0}</b>
+                        <span>Ачивки</span>
+                    </div>
                 </div>
-            </div>
-            <div class="stats-grid-container">
-                <div class="stat-card">
-                    <b>${formatTimeShort(p?.total_study_minutes || 0)}</b>
-                    <span>Учёба</span>
-                </div>
-                <div class="stat-card">
-                    <b>${p?.sessions_count || 0}</b>
-                    <span>Сессий</span>
-                </div>
-                <div class="stat-card">
-                    <b>${p?.messages_count || 0}</b>
-                    <span>Сообщ.</span>
-                </div>
-                <div class="stat-card">
-                    <b>${p?.achievements_count || 0}</b>
-                    <span>Ачивки</span>
-                </div>
-            </div>
-            <div style="margin-top: 10px; font-size: 0.85rem;">📌 Статус: ${escapeHtml(p?.status || '🟢 Онлайн')}</div>
-            <button id="logoutBtn">Выйти из системы</button>
-        `;
-        
-        document.getElementById('logoutBtn').onclick = async () => {
-            if (timerInterval) clearInterval(timerInterval);
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
-            await supabase.auth.signOut();
-            window.location.reload();
-        };
+                <div style="margin-top: 10px; font-size: 0.85rem;">📌 Статус: ${escapeHtml(p?.status || '🟢 Онлайн')}</div>
+                <button id="logoutBtn">Выйти из системы</button>
+            `;
+            
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.onclick = async () => {
+                    if (timerInterval) clearInterval(timerInterval);
+                    if (heartbeatInterval) clearInterval(heartbeatInterval);
+                    await supabase.auth.signOut();
+                    window.location.reload();
+                };
+            }
+        } catch (e) {
+            console.error('Ошибка обновления профиля:', e);
+        }
     }
 
     async function initSessionLogic() {
         const btn = document.getElementById('toggleSessionBtn');
         const timerDisp = document.getElementById('timerDisplay');
         
-        const { data: p } = await supabase.from('profiles').select('is_studying, session_start').eq('id', currentUser.id).single();
+        if (!btn || !timerDisp) return;
         
-        if (p?.is_studying && p?.session_start) {
-            const startTime = new Date(p.session_start);
-            timerInterval = setInterval(() => {
-                const diff = Math.floor((new Date() - startTime) / 1000);
-                timerDisp.innerText = formatSeconds(diff);
-            }, 1000);
-            btn.innerText = '⏹ Завершить';
-            btn.classList.remove('btn-start');
-            btn.classList.add('btn-stop');
+        // Очищаем предыдущий таймер если есть
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
         }
         
-        btn.onclick = async () => {
-            if (btn.classList.contains('btn-start')) {
-                const now = new Date();
-                await supabase.from('profiles').update({ 
-                    is_studying: true, 
-                    session_start: now.toISOString(),
-                    last_seen: now.toISOString()
-                }).eq('id', currentUser.id);
-                
-                const startTime = now;
+        try {
+            const { data: p } = await supabase.from('profiles').select('is_studying, session_start').eq('id', currentUser.id).maybeSingle();
+            
+            if (p?.is_studying && p?.session_start) {
+                const startTime = new Date(p.session_start);
                 timerInterval = setInterval(() => {
                     const diff = Math.floor((new Date() - startTime) / 1000);
                     timerDisp.innerText = formatSeconds(diff);
                 }, 1000);
-                
                 btn.innerText = '⏹ Завершить';
                 btn.classList.remove('btn-start');
                 btn.classList.add('btn-stop');
-                
-                if (now.getHours() < 8) await grantAchievement('Ранний старт');
-                await fetchGroup();
-                await refreshProfile();
-                
-            } else {
-                clearInterval(timerInterval);
-                
-                const { data: p2 } = await supabase.from('profiles')
-                    .select('session_start, total_study_minutes, sessions_count')
-                    .eq('id', currentUser.id)
-                    .single();
-                
-                if (p2?.session_start) {
-                    const diffMin = Math.max(0, Math.floor((new Date() - new Date(p2.session_start)) / 60000));
-                    const newTotal = (p2.total_study_minutes || 0) + diffMin;
-                    const newSessions = (p2.sessions_count || 0) + 1;
-                    
+            }
+            
+            btn.onclick = async () => {
+                if (btn.classList.contains('btn-start')) {
+                    // Начинаем сессию
+                    const now = new Date();
                     await supabase.from('profiles').update({ 
-                        is_studying: false, 
-                        session_start: null, 
-                        total_study_minutes: newTotal, 
-                        sessions_count: newSessions,
-                        last_seen: new Date().toISOString()
+                        is_studying: true, 
+                        session_start: now.toISOString(),
+                        last_seen: now.toISOString()
                     }).eq('id', currentUser.id);
                     
-                    if (newSessions >= 1) await grantAchievement('Первый шаг');
-                    if (newSessions >= 2) await grantAchievement('Возвращение');
-                    if (newSessions >= 5) await grantAchievement('Стабильность');
-                    if (diffMin >= 120) await grantAchievement('Марафонец');
-                    if (newTotal >= 1000) await grantAchievement('Легенда');
+                    if (timerInterval) clearInterval(timerInterval);
+                    
+                    const startTime = now;
+                    timerInterval = setInterval(() => {
+                        const diff = Math.floor((new Date() - startTime) / 1000);
+                        timerDisp.innerText = formatSeconds(diff);
+                    }, 1000);
+                    
+                    btn.innerText = '⏹ Завершить';
+                    btn.classList.remove('btn-start');
+                    btn.classList.add('btn-stop');
+                    
+                    if (now.getHours() < 8) await grantAchievement('Ранний старт');
+                    await fetchGroup();
+                    await refreshProfile();
+                    
+                } else {
+                    // Завершаем сессию
+                    if (timerInterval) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                    }
+                    
+                    const { data: p2 } = await supabase.from('profiles')
+                        .select('session_start, total_study_minutes, sessions_count')
+                        .eq('id', currentUser.id)
+                        .maybeSingle();
+                    
+                    if (p2?.session_start) {
+                        const diffMin = Math.max(0, Math.floor((new Date() - new Date(p2.session_start)) / 60000));
+                        const newTotal = (p2.total_study_minutes || 0) + diffMin;
+                        const newSessions = (p2.sessions_count || 0) + 1;
+                        
+                        await supabase.from('profiles').update({ 
+                            is_studying: false, 
+                            session_start: null, 
+                            total_study_minutes: newTotal, 
+                            sessions_count: newSessions,
+                            last_seen: new Date().toISOString()
+                        }).eq('id', currentUser.id);
+                        
+                        if (newSessions >= 1) await grantAchievement('Первый шаг');
+                        if (newSessions >= 2) await grantAchievement('Возвращение');
+                        if (newSessions >= 5) await grantAchievement('Стабильность');
+                        if (diffMin >= 120) await grantAchievement('Марафонец');
+                        if (newTotal >= 1000) await grantAchievement('Легенда');
+                    }
+                    
+                    timerDisp.innerText = '00:00:00';
+                    btn.innerText = '▶ Начать учёбу';
+                    btn.classList.remove('btn-stop');
+                    btn.classList.add('btn-start');
+                    
+                    await refreshProfile();
+                    await fetchGroup();
+                    await fetchRanking();
+                    await fetchAchievements();
                 }
-                
-                timerDisp.innerText = '00:00:00';
-                btn.innerText = '▶ Начать учёбу';
-                btn.classList.remove('btn-stop');
-                btn.classList.add('btn-start');
-                
-                await refreshProfile();
-                await fetchGroup();
-                await fetchRanking();
-                await fetchAchievements();
-            }
-        };
+            };
+        } catch (e) {
+            console.error('Ошибка инициализации сессии:', e);
+        }
     }
 
     window.prepStatus = (element, text) => {
@@ -921,39 +1032,51 @@ h2{
     window.applyStatus = async () => {
         if (!currentUser || !tempStatus.text) return;
         
-        await supabase.from('profiles').update({ 
-            status: tempStatus.text,
-            last_seen: new Date().toISOString()
-        }).eq('id', currentUser.id);
-        
-        await fetchGroup();
-        await refreshProfile();
+        try {
+            await supabase.from('profiles').update({ 
+                status: tempStatus.text,
+                last_seen: new Date().toISOString()
+            }).eq('id', currentUser.id);
+            
+            await fetchGroup();
+            await refreshProfile();
+        } catch (e) {
+            console.error('Ошибка применения статуса:', e);
+        }
     };
 
     window.switchMonitorTab = (tab) => {
         currentMonitorTab = tab;
         
         document.querySelectorAll('.monitor-tab').forEach(btn => btn.classList.remove('active'));
-        document.querySelector(`.monitor-tab[data-tab="${tab}"]`).classList.add('active');
+        const tabBtn = document.querySelector(`.monitor-tab[data-tab="${tab}"]`);
+        if (tabBtn) tabBtn.classList.add('active');
         
         document.querySelectorAll('.monitor-pane').forEach(pane => pane.classList.remove('active'));
-        document.getElementById(`${tab}Pane`).classList.add('active');
+        const pane = document.getElementById(`${tab}Pane`);
+        if (pane) pane.classList.add('active');
         
         if (tab === 'ranking') fetchRanking();
         if (tab === 'achievements') fetchAchievements();
     };
 
     async function seedAchievements() {
-        for (const a of ACHIEVEMENTS_LIST) {
-            const { data: exists } = await supabase.from('achievements').select('id').eq('name', a.name).maybeSingle();
-            if (!exists) {
-                await supabase.from('achievements').insert({ name: a.name, icon: a.icon, description: a.desc });
+        try {
+            for (const a of ACHIEVEMENTS_LIST) {
+                const { data: exists } = await supabase.from('achievements').select('id').eq('name', a.name).maybeSingle();
+                if (!exists) {
+                    await supabase.from('achievements').insert({ name: a.name, icon: a.icon, description: a.desc });
+                    console.log(`✅ Достижение "${a.name}" добавлено в базу`);
+                }
             }
+        } catch (e) {
+            console.error('Ошибка сидирования достижений:', e);
         }
     }
 
-    // Исправленная функция handleUser (теперь на верхнем уровне)
     async function handleUser(user) {
+        console.log('👤 Обработка пользователя:', user.email);
+        
         currentUser = user;
 
         const avatarUrl =
@@ -967,86 +1090,129 @@ h2{
             user.email?.split('@')[0] ||
             'Пользователь';
 
-        await supabase
-            .from('profiles')
-            .upsert({
-                id: user.id,
-                username,
-                avatar_url: avatarUrl,
-                last_seen: new Date().toISOString(),
-                status: '🟢 Онлайн'
-            }, { onConflict: 'id' });
+        try {
+            await supabase
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    username,
+                    avatar_url: avatarUrl,
+                    last_seen: new Date().toISOString(),
+                    status: '🟢 Онлайн'
+                }, { onConflict: 'id' });
 
-        await seedAchievements();
-        await refreshProfile();
-        await fetchGroup();
-        await fetchRanking();
-        await fetchAchievements();
-        await fetchMessages();
+            // Показываем интерфейс сразу
+            document.getElementById('sessionUI').style.display = 'block';
+            document.getElementById('chatSection').style.display = 'block';
+            document.getElementById('authContent').innerHTML = '';
 
-        document.getElementById('sessionUI').style.display = 'block';
-        document.getElementById('chatSection').style.display = 'block';
+            // Запускаем сидирование и параллельную загрузку данных
+            seedAchievements();
+            
+            await Promise.all([
+                refreshProfile(),
+                fetchGroup(),
+                fetchRanking(),
+                fetchAchievements(),
+                fetchMessages()
+            ]);
 
-        await initSessionLogic();
-        await updateHeartbeat();
+            await initSessionLogic();
+            await updateHeartbeat();
 
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval = setInterval(updateHeartbeat, 30000);
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(updateHeartbeat, 30000);
+            
+            console.log('✅ Пользователь полностью загружен');
+            
+        } catch (e) {
+            console.error('❌ Ошибка в handleUser:', e);
+        }
     }
 
     function showLoginButton() {
         const container = document.getElementById('authContent');
+        if (!container) return;
+        
         container.innerHTML = `
             <button id="loginBtn" style="width:100%; padding:14px; border-radius:10px; background:white; color:#1e293b; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
                 <img src="https://www.google.com/favicon.ico" width="18"> Войти через Google
             </button>
         `;
 
-        document.getElementById('loginBtn').onclick = async () => {
-            await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: window.location.origin
-                }
-            });
-        };
+        const loginBtn = document.getElementById('loginBtn');
+        if (loginBtn) {
+            loginBtn.onclick = async () => {
+                await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.origin
+                    }
+                });
+            };
+        }
     }
 
-    // Единая функция initAuth
     async function initAuth() {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.user) {
-            await handleUser(session.user);
-            return;
+        console.log('🔄 Проверка авторизации...');
+        
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+                console.error('❌ Ошибка получения сессии:', error);
+                showLoginButton();
+                return;
+            }
+            
+            if (session?.user) {
+                console.log('✅ Сессия найдена:', session.user.email);
+                await handleUser(session.user);
+                return;
+            }
+            
+            console.log('👤 Сессия не найдена');
+            showLoginButton();
+            
+        } catch (e) {
+            console.error('❌ Критическая ошибка в initAuth:', e);
+            showLoginButton();
         }
-
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (user) {
-            await handleUser(user);
-            return;
-        }
-
-        showLoginButton();
     }
 
     // Слушатель изменений авторизации
-    supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            await initAuth();
+    supabase.auth.onAuthStateChange((event, session) => {
+        console.log('🔄 Событие авторизации:', event);
+        
+        if (event === 'SIGNED_IN' && session?.user) {
+            if (!isInitialized) {
+                isInitialized = true;
+                handleUser(session.user);
+            }
         }
+        
         if (event === 'SIGNED_OUT') {
-            window.location.reload();
+            currentUser = null;
+            currentProfile = null;
+            isInitialized = false;
+            if (timerInterval) clearInterval(timerInterval);
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            showLoginButton();
+            document.getElementById('sessionUI').style.display = 'none';
+            document.getElementById('chatSection').style.display = 'none';
         }
     });
 
     // Запуск при загрузке
     window.addEventListener('load', async () => {
-        await initAuth();
+        console.log('📄 Страница загружена');
+        // Небольшая задержка для уверенности что Supabase инициализирован
+        setTimeout(async () => {
+            await initAuth();
+        }, 200);
     });
     
-    // Периодическое обновление
+    // Периодическое обновление (каждые 30 секунд)
     setInterval(() => {
         if (currentUser) {
             fetchGroup();
@@ -1055,7 +1221,7 @@ h2{
         } else {
             fetchGroup();
         }
-    }, 15000);
+    }, 30000);
 </script>
 </body>
 </html>
