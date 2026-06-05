@@ -629,12 +629,15 @@ h2{
         return diffSeconds < 90;
     }
 
-    async function updateHeartbeat() {
+        async function updateHeartbeat() {
         if (!currentUser) return;
         try {
-            await supabase.from('profiles').update({ 
+            const { error } = await supabase.from('profiles').update({ 
                 last_seen: new Date().toISOString() 
             }).eq('id', currentUser.id);
+            if (error) {
+                console.error('Ошибка heartbeat:', error);
+            }
         } catch (e) {
             console.error('Ошибка heartbeat:', e);
         }
@@ -1189,6 +1192,7 @@ h2{
             currentProfile = null;
             if (timerInterval) clearInterval(timerInterval);
             if (heartbeatInterval) clearInterval(heartbeatInterval);
+             heartbeatInterval = setInterval(updateHeartbeat, 5000);
             showLoginButton();
             document.getElementById('sessionUI').style.display = 'none';
             document.getElementById('chatSection').style.display = 'none';
@@ -1202,16 +1206,14 @@ h2{
         }, 300);
     });
 
-    setInterval(() => {
+        setInterval(() => {
         updateHeartbeat();
+        fetchGroup();
         if (currentUser) {
-            fetchGroup();
             fetchMessages();
             fetchRanking();
-        } else {
-            fetchGroup();
         }
-    }, 10000);
+    }, 5000);
 </script>
 </body>
 </html>
