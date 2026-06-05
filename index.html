@@ -1156,13 +1156,21 @@ h2{
         }, 300);
     });
 
-    setInterval(() => {
-        fetchGroup();
-        if (currentUser) {
-            fetchMessages();
-            fetchRanking();
-        }
-    }, 5000);
+    setInterval(async () => {
+    if (currentUser) {
+        await supabase
+            .from('profiles')
+            .update({
+                last_seen: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
+
+        fetchMessages();
+        fetchRanking();
+    }
+
+    fetchGroup();
+}, 5000);
 </script>
 </body>
 </html>
