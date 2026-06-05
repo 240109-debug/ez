@@ -503,6 +503,112 @@ h2{
     cursor:pointer;
 }
 
+.progress-achievement{
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.progress-achievement:hover{
+    background: #f0f0f0;
+}
+
+.progress-achievement.selected{
+    border: 2px solid #111111;
+    background: white;
+}
+
+.progress-bar-container{
+    width: 100%;
+    height: 8px;
+    background: #e5e5e5;
+    border-radius: 4px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+
+.progress-bar-fill{
+    height: 100%;
+    background: #111111;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.progress-text{
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.custom-status-input{
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.custom-status-input input{
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.custom-status-input input:focus{
+    border-color: #111111;
+}
+
+.custom-status-display{
+    background: #111111;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    display: inline-block;
+    margin-top: 6px;
+}
+
+.emoji-picker-btn{
+    background: #f5f5f5;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+.emoji-grid{
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    margin-top: 8px;
+    padding: 8px;
+    background: #fafafa;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.emoji-item{
+    padding: 6px;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 1.3rem;
+    transition: 0.2s;
+}
+
+.emoji-item:hover{
+    background: #e5e5e5;
+    transform: scale(1.2);
+}
+
 @media(max-width:520px){
 
     .stats-grid-container{
@@ -521,13 +627,14 @@ h2{
         <h2>📚 EZ Study</h2>
         <div class="status-info-box">
             <div id="authContent">Выполняется проверка авторизации...</div>
+            <div id="profileContent" style="display:none;"></div>
         </div>
 
         <div id="sessionUI" style="display:none;">
             <div class="timer-box">
                 <div style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 5px;">Текущая сессия:</div>
                 <div id="timerDisplay">00:00:00</div>
-                <button id="toggleSessionBtn" class="btn-session btn-start">▶ Начать учёбу</button>
+                <button id="toggleSessionBtn" class="btn-session btn-start" onclick="toggleSession()">▶ Начать учёбу</button>
             </div>
         </div>
 
@@ -577,600 +684,562 @@ h2{
     </div>
 
 <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-    const URL = 'https://hecwmcynkuhtbdizfsdi.supabase.co';
-    const KEY = 'sb_publishable_a7EABiugZ839No1nDOp-wg_O3u85AhT';
-    const supabase = createClient(URL, KEY);
+const supabase = createClient(
+    'https://hecwmcynkuhtbdizfsdi.supabase.co',
+    'sb_publishable_a7EABiugZ839No1nDOp-wg_O3u85AhT'
+);
 
-    let currentUser = null;
-    let currentProfile = null;
-    let tempStatus = { text: '' };
-    let timerInterval = null;
-    let currentMonitorTab = 'participants';
+const ACHIEVEMENTS_LIST = [
+    { name: 'Первый шаг', icon: '🚀', desc: 'Завершить первую учебную сессию' },
+    { name: 'Возвращение', icon: '🔄', desc: 'Завершить две учебные сессии' },
+    { name: 'Стабильность', icon: '📅', desc: 'Завершить пять учебных сессий' },
+    { name: 'Марафонец', icon: '🏃', desc: 'Одна сессия от 120 минут' },
+    { name: 'Ранний старт', icon: '🌅', desc: 'Начать учёбу до 08:00' },
+    { name: 'Активист', icon: '💬', desc: 'Отправить 10 сообщений' },
+    { name: 'Душа компании', icon: '🤝', desc: 'Отправить 50 сообщений' },
+    { name: 'Легенда', icon: '👑', desc: 'Накопить 1000 минут учёбы' }
+];
 
-    const ACHIEVEMENTS_LIST = [
-        { name: 'Первый шаг', icon: '🚀', desc: 'Завершить первую учебную сессию' },
-        { name: 'Возвращение', icon: '🔄', desc: 'Завершить две учебные сессии' },
-        { name: 'Стабильность', icon: '📅', desc: 'Завершить пять учебных сессий' },
-        { name: 'Марафонец', icon: '🏃', desc: 'Одна сессия от 120 минут' },
-        { name: 'Ранний старт', icon: '🌅', desc: 'Начать учёбу до 08:00' },
-        { name: 'Активист', icon: '💬', desc: 'Отправить 10 сообщений' },
-        { name: 'Душа компании', icon: '🤝', desc: 'Отправить 50 сообщений' },
-        { name: 'Легенда', icon: '👑', desc: 'Накопить 1000 минут учёбы' }
-    ];
+const EMOJI_LIST = ['📚', '💻', '🎯', '☕', '🎮', '💤', '🍕', '🏃', '🎵', '💡', '🌟', '🔥', '💪', '🧠', '📝', '🎨'];
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+const AppState = {
+    status: 'init',
+    user: null,
+    profile: null,
+    group: [],
+    messages: [],
+    achievementsList: [],
+    myAchievements: new Set(),
+    ranking: [],
+    onlineUsers: new Set(),
+    locks: new Set()
+};
+
+const listeners = {};
+
+function stateSet(key, value) {
+    AppState[key] = value;
+    if (listeners[key]) listeners[key].forEach(cb => cb(value));
+}
+
+function stateOn(key, callback) {
+    if (!listeners[key]) listeners[key] = [];
+    listeners[key].push(callback);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+}
+
+function formatTimeShort(minutes) {
+    const total = Math.max(0, Math.floor(minutes || 0));
+    if (total < 60) return `${total} мин`;
+    const hours = Math.floor(total / 60);
+    const mins = total % 60;
+    return mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`;
+}
+
+function formatSeconds(sec) {
+    const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+    const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+}
+
+function isOnline(user) {
+    if (!user || !user.last_seen) return false;
+    const diffSeconds = (new Date() - new Date(user.last_seen)) / 1000;
+    return diffSeconds < 90;
+}
+
+let timerInterval = null;
+let presenceInterval = null;
+let dataRefreshInterval = null;
+
+function cleanup() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
+    if (dataRefreshInterval) { clearInterval(dataRefreshInterval); dataRefreshInterval = null; }
+}
+
+async function updatePresence() {
+    if (!AppState.user) return;
+    try {
+        await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', AppState.user.id);
+    } catch (e) {
+        console.error('Presence error:', e);
     }
+}
 
-    function formatTimeShort(minutes) {
-        const total = Math.max(0, Math.floor(minutes || 0));
-        if (total < 60) return `${total} мин`;
-        const hours = Math.floor(total / 60);
-        const mins = total % 60;
-        return mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`;
-    }
+async function grantAchievement(name) {
+    if (!AppState.user) return;
+    if (AppState.locks.has(`ach_${name}`)) return;
+    AppState.locks.add(`ach_${name}`);
 
-    function formatSeconds(sec) {
-        const h = Math.floor(sec / 3600).toString().padStart(2, '0');
-        const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
-        const s = (sec % 60).toString().padStart(2, '0');
-        return `${h}:${m}:${s}`;
-    }
+    try {
+        const { data: achArray, error: achError } = await supabase.from('achievements').select('id').eq('name', name).limit(1);
 
-    function isOnline(user) {
-        if (!user || !user.last_seen) return false;
-        const now = new Date();
-        const lastSeen = new Date(user.last_seen);
-        const diffSeconds = (now - lastSeen) / 1000;
-        return diffSeconds < 90;
-    }
-
-    async function updateAchievementsCount() {
-        if (!currentUser) return;
-        try {
-            const { count } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
-            await supabase.from('profiles').update({ achievements_count: count || 0 }).eq('id', currentUser.id);
-        } catch (e) {
-            console.error('Ошибка обновления счётчика достижений:', e);
+        if (achError) {
+            console.error('Ошибка поиска достижения:', achError);
+            return;
         }
-    }
 
-    async function grantAchievement(name) {
-        if (!currentUser) return;
-        console.log(`Попытка выдать достижение: "${name}"`);
-        
-        try {
-            const { data: ach, error: achError } = await supabase.from('achievements').select('id').eq('name', name).maybeSingle();
-            
-            if (achError || !ach) {
-                console.log(`Достижение "${name}" не найдено`);
-                return;
-            }
-            
-            const { data: existing } = await supabase.from('user_achievements').select('id').eq('user_id', currentUser.id).eq('achievement_id', ach.id).maybeSingle();
-            
-            if (existing) {
-                console.log(`Достижение "${name}" уже получено`);
-                return;
-            }
-            
-            const { error: insertError } = await supabase.from('user_achievements').insert({ 
-                user_id: currentUser.id, 
-                achievement_id: ach.id 
-            });
-            
-            if (!insertError) {
-                console.log(`Достижение "${name}" успешно выдано!`);
-                await updateAchievementsCount();
-                await fetchAchievements();
-                await refreshProfile();
-            }
-        } catch (e) {
-            console.error(`Ошибка в grantAchievement("${name}"):`, e);
+        const ach = achArray && achArray.length > 0 ? achArray[0] : null;
+
+        if (!ach) {
+            console.log(`Достижение "${name}" не найдено`);
+            return;
         }
-    }
 
-    async function fetchAchievements() {
-        try {
-            const { data: all } = await supabase.from('achievements').select('*');
-            const { data: my } = currentUser ? await supabase.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id) : { data: [] };
-            const myIds = new Set(my?.map(m => m.achievement_id) || []);
-            
-            const list = (all && all.length) ? all : ACHIEVEMENTS_LIST;
-            const container = document.getElementById('achList');
-            
-            if (container) {
-                container.innerHTML = list.map(a => `
-                    <div class="ach-item ${myIds.has(a.id) ? 'unlocked' : ''}">
-                        <div class="ach-icon">${a.icon || '🏆'}</div>
-                        <div style="font-weight:600; font-size:0.75rem;">${escapeHtml(a.name)}</div>
-                        <small style="color:#94a3b8;">${escapeHtml(a.description || a.desc || '')}</small>
-                    </div>
-                `).join('');
-            }
-        } catch (e) {
-            console.error('Ошибка загрузки достижений:', e);
+        const { error: upsertError } = await supabase.from('user_achievements').upsert(
+            { user_id: AppState.user.id, achievement_id: ach.id },
+            { onConflict: 'user_id,achievement_id', ignoreDuplicates: true }
+        );
+
+        if (!upsertError) {
+            console.log(`Достижение "${name}" выдано`);
+            const myAch = new Set(AppState.myAchievements);
+            myAch.add(ach.id);
+            stateSet('myAchievements', myAch);
+
+            const { count } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', AppState.user.id);
+            await supabase.from('profiles').update({ achievements_count: count || 0 }).eq('id', AppState.user.id);
+        } else {
+            console.error(`Ошибка выдачи "${name}":`, upsertError);
         }
+    } catch (e) {
+        console.error(`Grant error "${name}":`, e);
+    } finally {
+        AppState.locks.delete(`ach_${name}`);
     }
+}
 
-    async function fetchRanking() {
-        try {
-            const { data } = await supabase
-                .from('profiles')
-                .select('id, username, avatar_url, total_study_minutes, sessions_count')
-                .order('total_study_minutes', { ascending: false })
-                .limit(10);
-            
-            const container = document.getElementById('rankList');
-            if (!container) return;
-            
-            if (!data || !data.length) {
-                container.innerHTML = '<div class="empty-state">Нет данных для рейтинга</div>';
-                return;
-            }
-            
-            container.innerHTML = data.map((u, i) => {
-                let medal = '';
-                if (i === 0) medal = '🥇';
-                else if (i === 1) medal = '🥈';
-                else if (i === 2) medal = '🥉';
-                else medal = `${i+1}.`;
-                
-                return `
-                    <div class="rank-row">
-                        <div style="width: 35px; font-weight: bold;">${medal}</div>
-                        <div class="rank-avatar">
-                            ${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}
-                        </div>
-                        <div style="flex:1;">
-                            <b>${escapeHtml(u.username || 'Пользователь')}</b>
-                            <div style="font-size:0.7rem; color:#94a3b8;">${u.sessions_count || 0} сессий</div>
-                        </div>
-                        <b style="color: var(--success-color);">${formatTimeShort(u.total_study_minutes || 0)}</b>
-                    </div>
-                `;
-            }).join('');
-        } catch (e) {
-            console.error('Ошибка загрузки рейтинга:', e);
+async function checkSessionAchievements(sessionCount, lastDurationMinutes, totalMinutes) {
+    if (sessionCount >= 1) await grantAchievement('Первый шаг');
+    if (sessionCount >= 2) await grantAchievement('Возвращение');
+    if (sessionCount >= 5) await grantAchievement('Стабильность');
+    if (lastDurationMinutes >= 120) await grantAchievement('Марафонец');
+    if (totalMinutes >= 1000) await grantAchievement('Легенда');
+    if (new Date().getHours() < 8) await grantAchievement('Ранний старт');
+}
+
+function updateSessionUI(profile) {
+    const btn = document.getElementById('toggleSessionBtn');
+    const timerDisp = document.getElementById('timerDisplay');
+    if (!btn || !timerDisp) return;
+
+    if (timerInterval) clearInterval(timerInterval);
+
+    if (profile?.is_studying && profile?.session_start) {
+        const startTime = new Date(profile.session_start).getTime();
+        timerInterval = setInterval(() => {
+            timerDisp.innerText = formatSeconds(Math.floor((Date.now() - startTime) / 1000));
+        }, 1000);
+        btn.innerText = '⏹ Завершить';
+        btn.className = 'btn-session btn-stop';
+    } else {
+        btn.innerText = '▶ Начать учёбу';
+        btn.className = 'btn-session btn-start';
+        timerDisp.innerText = '00:00:00';
+    }
+}
+
+window.toggleSession = async () => {
+    const user = AppState.user;
+    const profile = AppState.profile;
+
+    if (!user || !profile || AppState.locks.has('session')) return;
+    AppState.locks.add('session');
+
+    try {
+        if (!profile.is_studying) {
+            await supabase.from('profiles').update({
+                is_studying: true,
+                session_start: new Date().toISOString()
+            }).eq('id', user.id);
+        } else {
+            const start = new Date(profile.session_start).getTime();
+            const diffMin = Math.max(0, Math.floor((Date.now() - start) / 60000));
+            const newTotal = (profile.total_study_minutes || 0) + diffMin;
+            const newCount = (profile.sessions_count || 0) + 1;
+
+            await supabase.from('profiles').update({
+                is_studying: false,
+                session_start: null,
+                total_study_minutes: newTotal,
+                sessions_count: newCount
+            }).eq('id', user.id);
+
+            await checkSessionAchievements(newCount, diffMin, newTotal);
         }
+    } finally {
+        AppState.locks.delete('session');
     }
+};
 
-    async function fetchGroup() {
-        try {
-            if (currentUser) {
-                await supabase.from('profiles').update({ 
-                    last_seen: new Date().toISOString() 
-                }).eq('id', currentUser.id);
-            }
-            
-            const { data } = await supabase.from('profiles').select('*');
-            if (!data) return;
-            
-            const studying = data.filter(u => u.is_studying).length;
-            const online = data.filter(u => isOnline(u)).length;
-            const offline = data.length - online;
-            
-            document.getElementById('monitorSummary').innerHTML = `
-                <div class="monitor-summary-card"><b>${studying}</b><span>учатся</span></div>
-                <div class="monitor-summary-card"><b>${online}</b><span>онлайн</span></div>
-                <div class="monitor-summary-card"><b>${offline}</b><span>офлайн</span></div>
-            `;
-            
-            document.getElementById('groupList').innerHTML = data.map(u => {
-                const onlineNow = isOnline(u);
-                return `
-                    <div class="user-item">
-                        <div class="user-avatar-wrap">
-                            <div class="user-avatar">
-                                ${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}
-                            </div>
-                            <div class="online-dot ${onlineNow ? 'active' : ''}"></div>
-                        </div>
-                        <div class="username">${escapeHtml(u.username || 'Пользователь')}</div>
-                        <div><span class="status-tag">${escapeHtml(u.status || '🟢 Онлайн')}</span></div>
-                    </div>
-                `;
-            }).join('');
-        } catch (e) {
-            console.error('Ошибка загрузки группы:', e);
-        }
-    }
+function renderGroup() {
+    const group = AppState.group;
+    const onlineUsers = AppState.onlineUsers;
+    const container = document.getElementById('groupList');
+    if (!container) return;
 
-    async function fetchMessages() {
-        try {
-            const { data, error } = await supabase
-                .from('messages')
-                .select('*')
-                .order('created_at', { ascending: true })
-                .limit(50);
-            
-            const container = document.getElementById('chatBox');
-            if (!container) return;
-            
-            if (error) {
-                container.innerHTML = '<div class="empty-state">Ошибка загрузки сообщений</div>';
-                return;
-            }
-            
-            if (!data || !data.length) {
-                container.innerHTML = '<div class="empty-state">Нет сообщений. Напиши первое!</div>';
-                return;
-            }
-            
-            container.innerHTML = data.map(m => `
-                <div class="chat-msg ${m.user_id === currentUser?.id ? 'my-message' : ''}">
-                    <b>${escapeHtml(m.username || 'Пользователь')}:</b>
-                    <div>${escapeHtml(m.text || '')}</div>
+    let studying = 0, online = 0;
+    container.innerHTML = group.map(u => {
+        if (u.is_studying) studying++;
+        const isUserOnline = onlineUsers.has(u.id);
+        if (isUserOnline) online++;
+
+        return `
+            <div class="user-item">
+                <div class="user-avatar-wrap">
+                    <div class="user-avatar">${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}</div>
+                    <div class="online-dot ${isUserOnline ? 'active' : ''}"></div>
                 </div>
-            `).join('');
-            
-            container.scrollTop = container.scrollHeight;
-        } catch (e) {
-            console.error('Ошибка загрузки сообщений:', e);
-        }
+                <div class="username">
+                    ${escapeHtml(u.username || 'Пользователь')}
+                    ${u.custom_status ? `<br><small style="color: #94a3b8;">${u.custom_status_emoji || ''} ${escapeHtml(u.custom_status)}</small>` : ''}
+                </div>
+                <div><span class="status-tag">${escapeHtml(u.status || '🟢 Онлайн')}</span></div>
+            </div>
+        `;
+    }).join('');
+
+    const summary = document.getElementById('monitorSummary');
+    if (summary) {
+        summary.innerHTML = `
+            <div class="monitor-summary-card"><b>${studying}</b><span>учатся</span></div>
+            <div class="monitor-summary-card"><b>${online}</b><span>онлайн</span></div>
+            <div class="monitor-summary-card"><b>${group.length - online}</b><span>офлайн</span></div>
+        `;
+    }
+}
+
+function renderAchievements() {
+    const list = AppState.achievementsList;
+    const myIds = AppState.myAchievements;
+    const container = document.getElementById('achList');
+    if (!container) return;
+
+    container.innerHTML = list.map(a => `
+        <div class="ach-item ${myIds.has(a.id) ? 'unlocked' : ''}">
+            <div class="ach-icon">${a.icon || '🏆'}</div>
+            <div style="font-weight: 600; font-size: 0.75rem;">${escapeHtml(a.name)}</div>
+            <small style="color: #94a3b8;">${escapeHtml(a.description || a.desc || '')}</small>
+        </div>
+    `).join('');
+}
+
+function renderRanking() {
+    const ranking = AppState.ranking;
+    const container = document.getElementById('rankList');
+    if (!container) return;
+
+    container.innerHTML = ranking.map((u, i) => `
+        <div class="rank-row">
+            <div style="width: 35px; font-weight: bold;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 + '.'}</div>
+            <div class="rank-avatar">${u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : '👤'}</div>
+            <div style="flex: 1;">
+                <b>${escapeHtml(u.username || 'Пользователь')}</b>
+                <div style="font-size: 0.7rem; color: #94a3b8;">${u.sessions_count || 0} сессий</div>
+            </div>
+            <b style="color: var(--success-color);">${formatTimeShort(u.total_study_minutes || 0)}</b>
+        </div>
+    `).join('');
+}
+
+function renderMessages() {
+    const messages = AppState.messages;
+    const container = document.getElementById('chatBox');
+    if (!container) return;
+    const user = AppState.user;
+
+    if (!messages.length) {
+        container.innerHTML = '<div class="empty-state">Нет сообщений. Напиши первое!</div>';
+        return;
     }
 
-    async function sendMessage() {
-        const input = document.getElementById('chatInput');
-        const text = input.value.trim();
-        if (!text || !currentUser || !currentProfile) return;
-        
-        input.disabled = true;
-        
-        try {
-            const username = currentProfile?.username || currentUser?.email?.split('@')[0] || 'Пользователь';
-            
-            const { error } = await supabase.from('messages').insert({ 
-                user_id: currentUser.id, 
-                username: username, 
-                text: text 
-            });
-            
-            if (error) {
-                console.error('Ошибка отправки:', error);
-                input.disabled = false;
-                return;
-            }
-            
+    container.innerHTML = messages.map(m => `
+        <div class="chat-msg ${m.user_id === user?.id ? 'my-message' : ''}">
+            <b>${escapeHtml(m.username || 'Пользователь')}:</b>
+            <div>${escapeHtml(m.text || '')}</div>
+        </div>
+    `).join('');
+
+    container.scrollTop = container.scrollHeight;
+}
+
+stateOn('profile', updateSessionUI);
+stateOn('group', renderGroup);
+stateOn('onlineUsers', renderGroup);
+stateOn('messages', renderMessages);
+stateOn('achievementsList', renderAchievements);
+stateOn('myAchievements', renderAchievements);
+stateOn('ranking', renderRanking);
+
+window.showEmojiPicker = () => {
+    const existing = document.getElementById('emojiPicker');
+    if (existing) { existing.remove(); return; }
+
+    const picker = document.createElement('div');
+    picker.id = 'emojiPicker';
+    picker.className = 'emoji-grid';
+
+    EMOJI_LIST.forEach(emoji => {
+        const item = document.createElement('div');
+        item.className = 'emoji-item';
+        item.textContent = emoji;
+        item.onclick = () => {
+            const input = document.getElementById('customStatusEmoji');
+            if (input) input.value = emoji;
+            picker.remove();
+        };
+        picker.appendChild(item);
+    });
+
+    document.getElementById('customStatusContainer')?.appendChild(picker);
+};
+
+window.saveCustomStatus = async () => {
+    const emoji = document.getElementById('customStatusEmoji')?.value?.trim() || '';
+    const text = document.getElementById('customStatusText')?.value?.trim() || '';
+    const user = AppState.user;
+    if (!user || (!emoji && !text)) return;
+    await supabase.from('profiles').update({ custom_status_emoji: emoji, custom_status: text }).eq('id', user.id);
+};
+
+window.sendMessage = async () => {
+    const input = document.getElementById('chatInput');
+    const text = input?.value.trim();
+    const user = AppState.user;
+    const profile = AppState.profile;
+
+    if (!text || !user || !profile || AppState.locks.has('chat')) return;
+    AppState.locks.add('chat');
+    input.disabled = true;
+
+    try {
+        const { error } = await supabase.from('messages').insert({
+            user_id: user.id,
+            username: profile.username || 'Пользователь',
+            text: text
+        });
+
+        if (!error) {
             input.value = '';
-            await fetchMessages();
-            
-            const { data: p } = await supabase.from('profiles').select('messages_count').eq('id', currentUser.id).maybeSingle();
-            const newCount = (p?.messages_count || 0) + 1;
-            await supabase.from('profiles').update({ messages_count: newCount }).eq('id', currentUser.id);
-            
+            const newCount = (profile.messages_count || 0) + 1;
+            await supabase.from('profiles').update({ messages_count: newCount }).eq('id', user.id);
             if (newCount >= 10) await grantAchievement('Активист');
             if (newCount >= 50) await grantAchievement('Душа компании');
-            
-            await refreshProfile();
-            
-        } catch (e) {
-            console.error('Ошибка отправки сообщения:', e);
-        } finally {
-            input.disabled = false;
-            input.focus();
         }
+    } finally {
+        input.disabled = false;
+        input.focus();
+        AppState.locks.delete('chat');
     }
+};
 
-    window.sendMessage = sendMessage;
+window.switchMonitorTab = (tab) => {
+    document.querySelectorAll('.monitor-tab').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.monitor-tab[data-tab="${tab}"]`)?.classList.add('active');
+    document.querySelectorAll('.monitor-pane').forEach(pane => pane.classList.remove('active'));
+    document.getElementById(`${tab}Pane`)?.classList.add('active');
+};
 
-    async function refreshProfile() {
-        if (!currentUser) return;
-        
-        const { data: p } = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
-        if (!p) return;
-        
-        currentProfile = p;
-        
-        const infoBox = document.querySelector('.status-info-box');
-        if (!infoBox) return;
-        
-        infoBox.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                <div class="profile-avatar">
-                    ${p?.avatar_url ? `<img src="${p.avatar_url}" alt="">` : '👤'}
-                </div>
-                <div>
-                    <div style="font-weight: bold;">${escapeHtml(p?.username || 'Пользователь')}</div>
-                    <div style="font-size: 0.8rem; color: #22c55e;">● В сети</div>
-                </div>
+window.prepStatus = (element, text) => {
+    document.querySelectorAll('.status-option').forEach(opt => opt.classList.remove('active'));
+    element.classList.add('active');
+    window._tempStatus = text;
+};
+
+window.applyStatus = async () => {
+    const user = AppState.user;
+    const status = window._tempStatus;
+    if (!user || !status) return;
+
+    try {
+        await supabase.from('profiles').update({
+            status: status,
+            last_seen: new Date().toISOString()
+        }).eq('id', user.id);
+
+        window._tempStatus = null;
+    } catch (e) {
+        console.error('Ошибка применения статуса:', e);
+    }
+};
+
+async function renderProfileWithProgress() {
+    const user = AppState.user;
+    if (!user) return;
+
+    const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    if (!p) return;
+
+    AppState.profile = p;
+    const onlineStatus = isOnline(p) ? '● В сети' : '● Не в сети';
+    const onlineColor = isOnline(p) ? '#22c55e' : '#94a3b8';
+
+    const container = document.getElementById('profileContent');
+    const authContent = document.getElementById('authContent');
+    if (!container) return;
+
+    container.style.display = 'block';
+    if (authContent) authContent.style.display = 'none';
+
+    container.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+            <div class="profile-avatar">
+                ${p?.avatar_url ? `<img src="${p.avatar_url}" alt="">` : '👤'}
             </div>
-            <div class="stats-grid-container">
-                <div class="stat-card">
-                    <b>${formatTimeShort(p?.total_study_minutes || 0)}</b>
-                    <span>Учёба</span>
-                </div>
-                <div class="stat-card">
-                    <b>${p?.sessions_count || 0}</b>
-                    <span>Сессий</span>
-                </div>
-                <div class="stat-card">
-                    <b>${p?.messages_count || 0}</b>
-                    <span>Сообщ.</span>
-                </div>
-                <div class="stat-card">
-                    <b>${p?.achievements_count || 0}</b>
-                    <span>Ачивки</span>
-                </div>
+            <div style="flex: 1;">
+                <div style="font-weight: bold;">${escapeHtml(p?.username || 'Пользователь')}</div>
+                <div style="font-size: 0.8rem; color: ${onlineColor};">${onlineStatus}</div>
+                ${p?.custom_status ? `<div class="custom-status-display">${p.custom_status_emoji || ''} ${escapeHtml(p.custom_status)}</div>` : ''}
             </div>
-            <div style="margin-top: 10px; font-size: 0.85rem;">📌 Статус: ${escapeHtml(p?.status || '🟢 Онлайн')}</div>
-            <button id="logoutBtn">Выйти из системы</button>
-        `;
-        
-        document.getElementById('logoutBtn').onclick = async () => {
-            if (timerInterval) clearInterval(timerInterval);
-            await supabase.auth.signOut();
-            window.location.reload();
-        };
-    }
+        </div>
 
-    async function initSessionLogic() {
-        const btn = document.getElementById('toggleSessionBtn');
-        const timerDisp = document.getElementById('timerDisplay');
-        
-        if (!btn || !timerDisp) return;
-        
-        if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-        }
-        
-        try {
-            const { data: p } = await supabase.from('profiles').select('is_studying, session_start').eq('id', currentUser.id).maybeSingle();
-            
-            if (p?.is_studying && p?.session_start) {
-                const startTime = new Date(p.session_start);
-                timerInterval = setInterval(() => {
-                    const diff = Math.floor((new Date() - startTime) / 1000);
-                    timerDisp.innerText = formatSeconds(diff);
-                }, 1000);
-                btn.innerText = '⏹ Завершить';
-                btn.classList.remove('btn-start');
-                btn.classList.add('btn-stop');
-            }
-            
-            btn.onclick = async () => {
-                if (btn.classList.contains('btn-start')) {
-                    const now = new Date();
-                    await supabase.from('profiles').update({ 
-                        is_studying: true, 
-                        session_start: now.toISOString(),
-                        last_seen: now.toISOString()
-                    }).eq('id', currentUser.id);
-                    
-                    if (timerInterval) clearInterval(timerInterval);
-                    
-                    const startTime = now;
-                    timerInterval = setInterval(() => {
-                        const diff = Math.floor((new Date() - startTime) / 1000);
-                        timerDisp.innerText = formatSeconds(diff);
-                    }, 1000);
-                    
-                    btn.innerText = '⏹ Завершить';
-                    btn.classList.remove('btn-start');
-                    btn.classList.add('btn-stop');
-                    
-                    if (now.getHours() < 8) await grantAchievement('Ранний старт');
-                    await fetchGroup();
-                    await refreshProfile();
-                    
-                } else {
-                    if (timerInterval) {
-                        clearInterval(timerInterval);
-                        timerInterval = null;
-                    }
-                    
-                    const { data: p2 } = await supabase.from('profiles')
-                        .select('session_start, total_study_minutes, sessions_count')
-                        .eq('id', currentUser.id)
-                        .maybeSingle();
-                    
-                    if (p2?.session_start) {
-                        const diffMin = Math.max(0, Math.floor((new Date() - new Date(p2.session_start)) / 60000));
-                        const newTotal = (p2.total_study_minutes || 0) + diffMin;
-                        const newSessions = (p2.sessions_count || 0) + 1;
-                        
-                        await supabase.from('profiles').update({ 
-                            is_studying: false, 
-                            session_start: null, 
-                            total_study_minutes: newTotal, 
-                            sessions_count: newSessions,
-                            last_seen: new Date().toISOString()
-                        }).eq('id', currentUser.id);
-                        
-                        console.log(`Сессия завершена. Минут: ${diffMin}, Всего минут: ${newTotal}, Сессий: ${newSessions}`);
-                        
-                        if (newSessions >= 1) await grantAchievement('Первый шаг');
-                        if (newSessions >= 2) await grantAchievement('Возвращение');
-                        if (newSessions >= 5) await grantAchievement('Стабильность');
-                        if (diffMin >= 120) await grantAchievement('Марафонец');
-                        if (newTotal >= 1000) await grantAchievement('Легенда');
-                    }
-                    
-                    timerDisp.innerText = '00:00:00';
-                    btn.innerText = '▶ Начать учёбу';
-                    btn.classList.remove('btn-stop');
-                    btn.classList.add('btn-start');
-                    
-                    await refreshProfile();
-                    await fetchGroup();
-                    await fetchRanking();
-                    await fetchAchievements();
-                }
-            };
-        } catch (e) {
-            console.error('Ошибка инициализации сессии:', e);
-        }
-    }
+        <div class="stats-grid-container">
+            <div class="stat-card">
+                <b>${formatTimeShort(p?.total_study_minutes || 0)}</b>
+                <span>Учёба</span>
+            </div>
+            <div class="stat-card">
+                <b>${p?.sessions_count || 0}</b>
+                <span>Сессий</span>
+            </div>
+            <div class="stat-card">
+                <b>${p?.messages_count || 0}</b>
+                <span>Сообщ.</span>
+            </div>
+            <div class="stat-card">
+                <b>${p?.achievements_count || 0}</b>
+                <span>Ачивки</span>
+            </div>
+        </div>
 
-    window.prepStatus = (element, text) => {
-        document.querySelectorAll('.status-option').forEach(opt => opt.classList.remove('active'));
-        element.classList.add('active');
-        tempStatus.text = text;
-    };
+        <div style="margin-top: 15px; font-size: 0.9rem; font-weight: 600; color: #94a3b8;">✏️ Кастомный статус:</div>
+        <div id="customStatusContainer">
+            <div class="custom-status-input">
+                <input type="text" id="customStatusEmoji" placeholder="😊" maxlength="2" style="width: 50px; text-align: center;" value="${escapeHtml(p?.custom_status_emoji || '')}">
+                <button class="emoji-picker-btn" onclick="showEmojiPicker()">😊</button>
+                <input type="text" id="customStatusText" placeholder="Твой статус..." value="${escapeHtml(p?.custom_status || '')}">
+                <button class="btn-save" onclick="saveCustomStatus()" style="padding: 8px 16px; font-size: 0.85rem;">💾</button>
+            </div>
+        </div>
 
-    window.applyStatus = async () => {
-        if (!currentUser || !tempStatus.text) return;
-        
-        try {
-            await supabase.from('profiles').update({ 
-                status: tempStatus.text,
-                last_seen: new Date().toISOString()
-            }).eq('id', currentUser.id);
-            
-            await fetchGroup();
-            await refreshProfile();
-        } catch (e) {
-            console.error('Ошибка применения статуса:', e);
-        }
-    };
+        <div style="margin-top: 10px; font-size: 0.85rem;">📌 Статус: ${escapeHtml(p?.status || '🟢 Онлайн')}</div>
+        <button id="logoutBtn" onclick="window.logout()">Выйти из системы</button>
+    `;
+}
 
-    window.switchMonitorTab = (tab) => {
-        currentMonitorTab = tab;
-        
-        document.querySelectorAll('.monitor-tab').forEach(btn => btn.classList.remove('active'));
-        document.querySelector(`.monitor-tab[data-tab="${tab}"]`).classList.add('active');
-        
-        document.querySelectorAll('.monitor-pane').forEach(pane => pane.classList.remove('active'));
-        document.getElementById(`${tab}Pane`).classList.add('active');
-        
-        if (tab === 'ranking') fetchRanking();
-        if (tab === 'achievements') fetchAchievements();
-    };
+window.logout = async () => {
+    cleanup();
+    await supabase.auth.signOut();
+};
 
-    async function seedAchievements() {
-        try {
-            for (const a of ACHIEVEMENTS_LIST) {
-                const { data: exists } = await supabase.from('achievements').select('id').eq('name', a.name).maybeSingle();
-                if (!exists) {
-                    await supabase.from('achievements').insert({ name: a.name, icon: a.icon, description: a.desc });
-                }
-            }
-        } catch (e) {
-            console.error('Ошибка сидирования:', e);
-        }
-    }
+function showLoginButton() {
+    const container = document.getElementById('authContent');
+    if (!container) return;
 
-    async function handleUser(user) {
-        currentUser = user;
-        
-        const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
-        const username = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Пользователь';
-        
-        try {
-            await supabase.from('profiles').upsert({
-                id: user.id,
-                username: username,
-                avatar_url: avatarUrl,
-                last_seen: new Date().toISOString(),
-                status: '🟢 Онлайн'
-            }, { onConflict: 'id' });
-            
-            document.getElementById('sessionUI').style.display = 'block';
-            document.getElementById('chatSection').style.display = 'block';
-            
-            const authContent = document.getElementById('authContent');
-            if (authContent) authContent.innerHTML = '';
-            
-            await seedAchievements();
-            await Promise.all([
-                refreshProfile(),
-                fetchGroup(),
-                fetchRanking(),
-                fetchAchievements(),
-                fetchMessages()
-            ]);
-            
-            await initSessionLogic();
-            
-        } catch (e) {
-            console.error('Ошибка в handleUser:', e);
-        }
-    }
+    const profileContent = document.getElementById('profileContent');
+    if (profileContent) profileContent.style.display = 'none';
 
-    function showLoginButton() {
-        const container = document.getElementById('authContent');
-        if (!container) return;
-        
-        container.innerHTML = `
-            <button id="loginBtn" style="width:100%; padding:14px; border-radius:10px; background:white; color:#1e293b; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
-                <img src="https://www.google.com/favicon.ico" width="18"> Войти через Google
-            </button>
-        `;
-        
-        const loginBtn = document.getElementById('loginBtn');
-        if (loginBtn) {
-            loginBtn.onclick = async () => {
-                await supabase.auth.signInWithOAuth({ 
-                    provider: 'google', 
-                    options: { 
-                        redirectTo: 'https://240109-debug.github.io/ez/' 
-                    } 
-                });
-            };
-        }
-    }
+    container.style.display = 'block';
+    container.innerHTML = `
+        <button onclick="loginWithGoogle()" style="width:100%; padding:14px; border-radius:10px; background:white; color:#1e293b; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+            <img src="https://www.google.com/favicon.ico" width="18"> Войти через Google
+        </button>
+    `;
+}
 
-    async function initAuth() {
-        try {
-            const { data: { session }, error } = await supabase.auth.getSession();
-            
-            if (error) {
-                showLoginButton();
-                return;
-            }
-            
-            if (session?.user) {
-                await handleUser(session.user);
-                return;
-            }
-            
-            showLoginButton();
-            
-        } catch (e) {
-            showLoginButton();
-        }
+window.loginWithGoogle = () => {
+    supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+    });
+};
+
+async function initData() {
+    const user = AppState.user;
+    if (!user) return;
+
+    const [profileRes, groupRes, msgsRes, achRes, rankRes, myAchRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+        supabase.from('profiles').select('*'),
+        supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(50),
+        supabase.from('achievements').select('*'),
+        supabase.from('profiles').select('*').order('total_study_minutes', { ascending: false }).limit(10),
+        supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id)
+    ]);
+
+    if (profileRes.data) { AppState.profile = profileRes.data; stateSet('profile', profileRes.data); }
+    if (groupRes.data) stateSet('group', groupRes.data);
+    if (msgsRes.data) stateSet('messages', msgsRes.data);
+    if (achRes.data) stateSet('achievementsList', achRes.data.length ? achRes.data : ACHIEVEMENTS_LIST);
+    else stateSet('achievementsList', ACHIEVEMENTS_LIST);
+    if (rankRes.data) stateSet('ranking', rankRes.data);
+    if (myAchRes.data) stateSet('myAchievements', new Set(myAchRes.data.map(a => a.achievement_id)));
+
+    await renderProfileWithProgress();
+}
+
+async function initializeApp(user) {
+    if (AppState.status === 'ready') return;
+    AppState.status = 'loading';
+    AppState.user = user;
+
+    await supabase.from('profiles').upsert({
+        id: user.id,
+        username: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь',
+        avatar_url: user.user_metadata?.avatar_url || null
+    }, { onConflict: 'id' });
+
+    document.getElementById('sessionUI').style.display = 'block';
+    document.getElementById('chatSection').style.display = 'block';
+
+    await initData();
+
+    if (presenceInterval) clearInterval(presenceInterval);
+    presenceInterval = setInterval(updatePresence, 30000);
+
+    if (dataRefreshInterval) clearInterval(dataRefreshInterval);
+    dataRefreshInterval = setInterval(async () => {
+        const { data: group } = await supabase.from('profiles').select('*');
+        if (group) stateSet('group', group);
+
+        const { data: msgs } = await supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
+        if (msgs) stateSet('messages', msgs);
+
+        const { data: rank } = await supabase.from('profiles').select('*').order('total_study_minutes', { ascending: false }).limit(10);
+        if (rank) stateSet('ranking', rank);
+    }, 10000);
+
+    AppState.status = 'ready';
+}
+
+async function boot() {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (session?.user) {
+        await initializeApp(session.user);
+    } else {
+        showLoginButton();
     }
 
     supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-            handleUser(session.user);
-        }
-        
-        if (event === 'SIGNED_OUT') {
-            currentUser = null;
-            currentProfile = null;
-            if (timerInterval) clearInterval(timerInterval);
-            showLoginButton();
-            document.getElementById('sessionUI').style.display = 'none';
-            document.getElementById('chatSection').style.display = 'none';
+        if (event === 'SIGNED_IN' && AppState.status !== 'ready') {
+            initializeApp(session.user);
+        } else if (event === 'SIGNED_OUT') {
+            AppState.status = 'init';
+            window.location.reload();
         }
     });
+}
 
-    window.addEventListener('load', async () => {
-        setTimeout(async () => {
-            await initAuth();
-        }, 300);
-    });
-
-    setInterval(async () => {
-    if (currentUser) {
-        await supabase
-            .from('profiles')
-            .update({
-                last_seen: new Date().toISOString()
-            })
-            .eq('id', currentUser.id);
-
-        fetchMessages();
-        fetchRanking();
-    }
-
-    fetchGroup();
-}, 5000);
+window.addEventListener('load', () => setTimeout(boot, 300));
 </script>
 </body>
 </html>
