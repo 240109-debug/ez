@@ -587,7 +587,6 @@ h2{
     let currentProfile = null;
     let tempStatus = { text: '' };
     let timerInterval = null;
-    let heartbeatInterval = null;
     let currentMonitorTab = 'participants';
 
     const ACHIEVEMENTS_LIST = [
@@ -629,20 +628,6 @@ h2{
         return diffSeconds < 90;
     }
 
-        async function updateHeartbeat() {
-        if (!currentUser) return;
-        try {
-            const { error } = await supabase.from('profiles').update({ 
-                last_seen: new Date().toISOString() 
-            }).eq('id', currentUser.id);
-            if (error) {
-                console.error('Ошибка heartbeat:', error);
-            }
-        } catch (e) {
-            console.error('Ошибка heartbeat:', e);
-        }
-    }
-
     async function updateAchievementsCount() {
         if (!currentUser) return;
         try {
@@ -660,27 +645,15 @@ h2{
         try {
             const { data: ach, error: achError } = await supabase.from('achievements').select('id').eq('name', name).maybeSingle();
             
-            if (achError) {
-                console.error('Ошибка поиска достижения:', achError);
+            if (achError || !ach) {
+                console.log(`Достижение "${name}" не найдено`);
                 return;
             }
             
-            if (!ach) {
-                console.log(`Достижение "${name}" не найдено в таблице achievements`);
-                return;
-            }
-            
-            console.log(`Найдено достижение id=${ach.id} для "${name}"`);
-            
-            const { data: existing, error: existError } = await supabase.from('user_achievements').select('id').eq('user_id', currentUser.id).eq('achievement_id', ach.id).maybeSingle();
-            
-            if (existError) {
-                console.error('Ошибка проверки существующего достижения:', existError);
-                return;
-            }
+            const { data: existing } = await supabase.from('user_achievements').select('id').eq('user_id', currentUser.id).eq('achievement_id', ach.id).maybeSingle();
             
             if (existing) {
-                console.log(`Достижение "${name}" уже получено ранее`);
+                console.log(`Достижение "${name}" уже получено`);
                 return;
             }
             
@@ -689,18 +662,14 @@ h2{
                 achievement_id: ach.id 
             });
             
-            if (insertError) {
-                console.error(`Ошибка вставки достижения "${name}":`, insertError);
-                return;
+            if (!insertError) {
+                console.log(`Достижение "${name}" успешно выдано!`);
+                await updateAchievementsCount();
+                await fetchAchievements();
+                await refreshProfile();
             }
-            
-            console.log(`Достижение "${name}" успешно выдано!`);
-            await updateAchievementsCount();
-            await fetchAchievements();
-            await refreshProfile();
-            
         } catch (e) {
-            console.error(`Критическая ошибка в grantAchievement("${name}"):`, e);
+            console.error(`Ошибка в grantAchievement("${name}"):`, e);
         }
     }
 
@@ -771,6 +740,12 @@ h2{
 
     async function fetchGroup() {
         try {
+            if (currentUser) {
+                await supabase.from('profiles').update({ 
+                    last_seen: new Date().toISOString() 
+                }).eq('id', currentUser.id);
+            }
+            
             const { data } = await supabase.from('profiles').select('*');
             if (!data) return;
             
@@ -811,8 +786,6 @@ h2{
                 .select('*')
                 .order('created_at', { ascending: true })
                 .limit(50);
-            
-            console.log('Загрузка сообщений:', data, 'Ошибка:', error);
             
             const container = document.getElementById('chatBox');
             if (!container) return;
@@ -856,8 +829,6 @@ h2{
                 text: text 
             });
             
-            console.log('Отправка сообщения:', text, 'Ошибка:', error);
-            
             if (error) {
                 console.error('Ошибка отправки:', error);
                 input.disabled = false;
@@ -895,6 +866,8 @@ h2{
         currentProfile = p;
         
         const infoBox = document.querySelector('.status-info-box');
+        if (!infoBox) return;
+        
         infoBox.innerHTML = `
             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                 <div class="profile-avatar">
@@ -929,7 +902,6 @@ h2{
         
         document.getElementById('logoutBtn').onclick = async () => {
             if (timerInterval) clearInterval(timerInterval);
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
             await supabase.auth.signOut();
             window.location.reload();
         };
@@ -1070,26 +1042,19 @@ h2{
     };
 
     async function seedAchievements() {
-        console.log('Сидирование достижений...');
         try {
             for (const a of ACHIEVEMENTS_LIST) {
                 const { data: exists } = await supabase.from('achievements').select('id').eq('name', a.name).maybeSingle();
                 if (!exists) {
-                    const { error } = await supabase.from('achievements').insert({ name: a.name, icon: a.icon, description: a.desc });
-                    if (error) {
-                        console.error(`Ошибка добавления "${a.name}":`, error);
-                    } else {
-                        console.log(`Достижение "${a.name}" добавлено в базу`);
-                    }
+                    await supabase.from('achievements').insert({ name: a.name, icon: a.icon, description: a.desc });
                 }
             }
         } catch (e) {
-            console.error('Ошибка сидирования достижений:', e);
+            console.error('Ошибка сидирования:', e);
         }
     }
 
     async function handleUser(user) {
-        console.log('Обработка пользователя:', user.email);
         currentUser = user;
         
         const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
@@ -1106,7 +1071,9 @@ h2{
             
             document.getElementById('sessionUI').style.display = 'block';
             document.getElementById('chatSection').style.display = 'block';
-            document.getElementById('authContent').innerHTML = '';
+            
+            const authContent = document.getElementById('authContent');
+            if (authContent) authContent.innerHTML = '';
             
             await seedAchievements();
             await Promise.all([
@@ -1119,12 +1086,6 @@ h2{
             
             await initSessionLogic();
             
-            updateHeartbeat();
-            
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
-            heartbeatInterval = setInterval(updateHeartbeat, 15000);
-            
-            console.log('Пользователь полностью загружен');
         } catch (e) {
             console.error('Ошибка в handleUser:', e);
         }
@@ -1154,35 +1115,27 @@ h2{
     }
 
     async function initAuth() {
-        console.log('Проверка авторизации...');
-        
         try {
             const { data: { session }, error } = await supabase.auth.getSession();
             
             if (error) {
-                console.error('Ошибка получения сессии:', error);
                 showLoginButton();
                 return;
             }
             
             if (session?.user) {
-                console.log('Сессия найдена:', session.user.email);
                 await handleUser(session.user);
                 return;
             }
             
-            console.log('Сессия не найдена');
             showLoginButton();
             
         } catch (e) {
-            console.error('Критическая ошибка в initAuth:', e);
             showLoginButton();
         }
     }
 
     supabase.auth.onAuthStateChange((event, session) => {
-        console.log('Событие авторизации:', event);
-        
         if (event === 'SIGNED_IN' && session?.user) {
             handleUser(session.user);
         }
@@ -1191,8 +1144,6 @@ h2{
             currentUser = null;
             currentProfile = null;
             if (timerInterval) clearInterval(timerInterval);
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
-             heartbeatInterval = setInterval(updateHeartbeat, 5000);
             showLoginButton();
             document.getElementById('sessionUI').style.display = 'none';
             document.getElementById('chatSection').style.display = 'none';
@@ -1200,14 +1151,12 @@ h2{
     });
 
     window.addEventListener('load', async () => {
-        console.log('Страница загружена');
         setTimeout(async () => {
             await initAuth();
         }, 300);
     });
 
-        setInterval(() => {
-        updateHeartbeat();
+    setInterval(() => {
         fetchGroup();
         if (currentUser) {
             fetchMessages();
