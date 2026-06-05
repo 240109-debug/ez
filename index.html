@@ -350,7 +350,7 @@ h2{
 
     border-radius:50%;
 
-    background:#999;
+    background:#d1d5db;
 
     position:absolute;
 
@@ -361,7 +361,7 @@ h2{
 }
 
 .online-dot.active{
-    background:#111111;
+    background:#22c55e;
 }
 
 .username{
@@ -622,12 +622,22 @@ h2{
     }
 
     function isOnline(user) {
-        return user?.last_seen && (new Date() - new Date(user.last_seen) < 60000);
+        if (!user || !user.last_seen) return false;
+        const now = new Date();
+        const lastSeen = new Date(user.last_seen);
+        const diffSeconds = (now - lastSeen) / 1000;
+        return diffSeconds < 90;
     }
 
     async function updateHeartbeat() {
         if (!currentUser) return;
-        await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+        try {
+            await supabase.from('profiles').update({ 
+                last_seen: new Date().toISOString() 
+            }).eq('id', currentUser.id);
+        } catch (e) {
+            console.error('Ошибка heartbeat:', e);
+        }
     }
 
     async function updateAchievementsCount() {
@@ -889,7 +899,7 @@ h2{
                 </div>
                 <div>
                     <div style="font-weight: bold;">${escapeHtml(p?.username || 'Пользователь')}</div>
-                    <div style="font-size: 0.8rem; color: var(--success-color);">● В сети</div>
+                    <div style="font-size: 0.8rem; color: #22c55e;">● В сети</div>
                 </div>
             </div>
             <div class="stats-grid-container">
@@ -1105,10 +1115,11 @@ h2{
             ]);
             
             await initSessionLogic();
-            await updateHeartbeat();
+            
+            updateHeartbeat();
             
             if (heartbeatInterval) clearInterval(heartbeatInterval);
-            heartbeatInterval = setInterval(updateHeartbeat, 30000);
+            heartbeatInterval = setInterval(updateHeartbeat, 15000);
             
             console.log('Пользователь полностью загружен');
         } catch (e) {
@@ -1192,6 +1203,7 @@ h2{
     });
 
     setInterval(() => {
+        updateHeartbeat();
         if (currentUser) {
             fetchGroup();
             fetchMessages();
@@ -1199,7 +1211,7 @@ h2{
         } else {
             fetchGroup();
         }
-    }, 30000);
+    }, 10000);
 </script>
 </body>
 </html>
